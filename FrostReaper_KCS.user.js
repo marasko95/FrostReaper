@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.6
+// @version      0.2.7
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -1390,14 +1390,22 @@
     }
 
     function getItemTipText(el) {
-        const tipSource = getTipSourceElement(el);
-        if (!tipSource) return '';
-
-        const tipAttr = tipSource.getAttribute('tip') || tipSource.getAttribute('data-tip');
-        if (tipAttr) return tipAttr;
-        const tipId = tipSource.getAttribute('tip-id');
-        if (tipId && window.TIPS && window.TIPS.allTips) {
-            return window.TIPS.allTips[tipId] || '';
+        if (!el) return '';
+        // W NI opis często jest na dziecku, a atrybut data-tip na
+        // kontenerze bywa pusty / nie jest opisem przedmiotu.
+        const sources = [el, ...el.querySelectorAll?.('[tip], [tip-id], [data-tip]') || []];
+        for (const source of sources) {
+            const direct = source.getAttribute?.('tip') || source.getAttribute?.('data-tip');
+            if (direct && /teleport|przenosi|mapę|map[eę]/i.test(direct)) return direct;
+            const id = source.getAttribute?.('tip-id');
+            const resolved = id && window.TIPS?.allTips?.[id];
+            if (resolved && /teleport|przenosi|mapę|map[eę]/i.test(String(resolved))) return String(resolved);
+        }
+        for (const source of sources) {
+            const direct = source.getAttribute?.('tip') || source.getAttribute?.('data-tip');
+            if (direct) return direct;
+            const id = source.getAttribute?.('tip-id');
+            if (id && window.TIPS?.allTips?.[id]) return String(window.TIPS.allTips[id]);
         }
         return '';
     }
@@ -1418,46 +1426,33 @@
 
     function getAllTeleportItems(force = false) {
         const now = Date.now();
-        if (!force && teleportItemCache.items.length &&
+        if (!force && teleportItemCache.items.length > 0 &&
             now - teleportItemCache.checkedAt < ITEM_SCAN_CACHE_MS &&
             teleportItemCache.items.every(el => el?.isConnected)) {
             return teleportItemCache.items;
         }
-
         const results = [];
-        const seenElements = new Set();
-        // Wrócono do oryginalnego rozpoznawania teleportów po opisie.
-        // Poprzednia wersja wymagała DODATKOWO mapy pasującej do
-        // MONSTER_TO_MAPS już na etapie skanowania ekwipunku, przez co
-        // odrzucała poprawne kamienie, zanim mogły być dopasowane dalej.
-        const selectors = INTERFACE === 'SI'
-            ? '.item[tip], .item[tip-id], .item[data-tip]'
-            : [
-                '.inventory-item',
-                '.inventory-grid [class*="item-id-"]',
-                '.inventory-grid [tip-id]',
-                '.inventory-grid [tip]',
-                '.inventory-grid [data-tip]',
-                '[data-window-name="inventory"] [tip-id]',
-                '[data-window-name="inventory"] [tip]',
-                '[data-window-name="inventory"] [data-tip]'
-            ].join(',');
-
+        const seen = new Set();
+        // Oba interfejsy: INTERFACE może być nieustalony podczas
+        // inicjalizacji lub zmiany postaci. Ograniczamy się do ekwipunku.
+        const selectors = [
+            '.item[tip]', '.item[tip-id]', '.item[data-tip]',
+            '.inventory-item', '.inventory-grid [class*="item-id-"]',
+            '.inventory-grid [tip-id]', '.inventory-grid [tip]',
+            '.inventory-grid [data-tip]',
+            '[data-window-name="inventory"] [tip-id]',
+            '[data-window-name="inventory"] [tip]',
+            '[data-window-name="inventory"] [data-tip]'
+        ].join(',');
         document.querySelectorAll(selectors).forEach(candidate => {
-            const el = INTERFACE === 'NI'
-                ? (candidate.closest?.('.inventory-item, [class*="item-id-"], [data-item-id]') || candidate)
-                : candidate;
-            if (seenElements.has(el)) return;
+            const el = candidate.closest?.('.inventory-item, [class*="item-id-"], [data-item-id]') || candidate;
+            if (seen.has(el)) return;
+            seen.add(el);
             const tip = String(getItemTipText(el) || '');
-            if (!tip) return;
-            // Przyjmujemy zarówno oryginalny opis 'Teleportuje ...',
-            // jak i rozpoznaną mapę docelową. Nie filtrujemy tu po E2.
-            const isTeleport = /teleport|przenosi\s+(?:posta[cć]|na\s+map[eę])/i.test(tip);
-            if (!isTeleport && !extractMapFromHtml(tip)) return;
-            seenElements.add(el);
+            if (!/teleport|przenosi\s+(?:posta[cć]|na\s+map[eę])/i.test(tip) &&
+                !extractMapFromHtml(tip)) return;
             results.push(el);
         });
-
         teleportItemCache = { checkedAt: now, items: results };
         return results;
     }
@@ -5541,6 +5536,18 @@
         return next;
     }
     const frKcsApi = {
+        diagnoseStones: () => {
+            const candidates = document.querySelectorAll('.item[tip], .item[tip-id], .inventory-item, .inventory-grid [tip-id], .inventory-grid [tip], .inventory-grid [data-tip]');
+            const stones = getAllTeleportItems(true);
+            return { interface: INTERFACE, candidates: candidates.length,
+                detected: stones.length, tipsAvailable: !!window.TIPS?.allTips,
+                sample: Array.from(candidates).slice(0, 8).map(el => ({
+                    hasTip: !!el.getAttribute('tip'),
+                    tipId: el.getAttribute('tip-id'),
+                    childrenWithTip: el.querySelectorAll('[tip],[tip-id],[data-tip]').length,
+                    tipLength: getItemTipText(el).length
+                })) };
+        },
         version: '0.2.2',
         openSettings: () => { openSettings(); return true; },
         showWidget: () => frKcsSetVisible(true),
