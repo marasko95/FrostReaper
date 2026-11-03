@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.3
+// @version      0.3.4
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -3646,6 +3646,19 @@
                 z-index: 4;
                 animation: fr-kcs-ready-ring 1.65s ease-in-out infinite;
             }
+            /* Ten sam aktualnie wybrany kamien w plecaku. */
+            .fr-kcs-inventory-active {
+                position: relative !important;
+                z-index: 2 !important;
+                outline: 2px solid #ffe68a !important;
+                outline-offset: -2px !important;
+                border-radius: 4px !important;
+                animation: fr-kcs-inventory-glow 1.65s ease-in-out infinite !important;
+            }
+            @keyframes fr-kcs-inventory-glow {
+                0%, 100% { box-shadow: inset 0 0 4px #ffd66c99, 0 0 4px #f3bf4d88; }
+                50% { box-shadow: inset 0 0 10px #ffeaa9dd, 0 0 13px 3px #ffdd75ee; }
+            }
             @keyframes fr-kcs-ready-glow {
                 0%, 100% { box-shadow: 0 0 5px #e2b54d77, 0 2px 8px #000c; }
                 50% { box-shadow: 0 0 17px 4px #ffe278cc, 0 0 28px #f4b73a55, 0 2px 8px #000c; }
@@ -3656,7 +3669,8 @@
             }
             @media (prefers-reduced-motion: reduce) {
                 #e2-teleport-slot.fr-kcs-ready,
-                #e2-teleport-slot.fr-kcs-ready::after { animation: none !important; }
+                #e2-teleport-slot.fr-kcs-ready::after,
+                .fr-kcs-inventory-active { animation: none !important; }
             }
             #e2-teleport-slot .e2slot-control {
                 appearance: none;
@@ -5304,10 +5318,32 @@
         if (slotEl.title !== value) slotEl.title = value;
     }
 
+    // Podswietl tylko fizyczny przedmiot wybrany do slotu KCS.
+    // Porownanie po ID zabezpiecza przed podmiana elementu DOM po odswiezeniu plecaka.
+    let highlightedInventoryItem = null;
+    function syncInventoryHighlight(selected) {
+        const id = selected ? getItemGameId(selected) : null;
+        let next = null;
+        if (id !== null && id !== undefined && String(id) !== '') {
+            const candidates = getAllTeleportItems();
+            next = candidates.find(item => item.isConnected &&
+                !item.closest?.('#e2-teleport-slot') &&
+                String(getItemGameId(item)) === String(id)) || null;
+        }
+        if (highlightedInventoryItem && highlightedInventoryItem !== next) {
+            highlightedInventoryItem.classList.remove('fr-kcs-inventory-active');
+        }
+        highlightedInventoryItem = next;
+        if (next && !next.classList.contains('fr-kcs-inventory-active')) {
+            next.classList.add('fr-kcs-inventory-active');
+        }
+    }
+
     function renderSlotFor(monsterId, timerMap = new Map(), selectedItem = undefined) {
         if (recordingHotkey) return;
 
         if (!monsterId) {
+            syncInventoryHighlight(null);
             slotEl.classList.remove('fr-kcs-ready');
             currentMonsterId = null;
             currentItemEl = null;
@@ -5336,6 +5372,7 @@
                 : selectedItem;
 
         if (readyItem) {
+            syncInventoryHighlight(readyItem);
             slotEl.classList.add('fr-kcs-ready');
             renderItemIcon(readyItem);
             currentItemEl = readyItem;
@@ -5359,6 +5396,7 @@
                 showTimerLabel('KCS');
             }
         } else {
+            syncInventoryHighlight(null);
             slotEl.classList.remove('fr-kcs-ready');
             currentItemEl = null;
             delete iconEl.dataset.itemIconKey;
@@ -5409,6 +5447,7 @@
     }
 
     function showIdleStatus(label, detail) {
+        syncInventoryHighlight(null);
         slotEl?.classList.remove('fr-kcs-ready');
         currentMonsterId = null;
         currentItemEl = null;
