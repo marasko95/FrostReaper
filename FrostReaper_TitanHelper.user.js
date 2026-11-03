@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - TitanHelper module
 // @namespace    frost-reaper
-// @version      0.5.37
+// @version      0.5.38
 // @description  Niezależny moduł TitanHelper dla Frost Reaper (natywne okno Margonem).
 // @match        *://*.margonem.pl/*
 // @match        *://margonem.pl/*
@@ -162,22 +162,6 @@
       setTimeout(()=>{if(!active)apply(saved.left,saved.top)},250);
       setTimeout(()=>{if(!active)apply(saved.left,saved.top)},1000);
     }
-    // Margonem po zmianie postaci / ponownym show() potrafi nadpisać left/top.
-    // Lekki watchdog jednego okna (bez MutationObserver całej gry).
-    // Odczytujemy pozycję z localStorage za każdym razem, więc Reset pozycji nadal działa.
-    const frPositionWatch = setInterval(() => {
-      if (!element.isConnected) { clearInterval(frPositionWatch); return; }
-      if (active) return;
-      let p;
-      try { p = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return; }
-      if (!Number.isFinite(p?.left) || !Number.isFinite(p?.top)) return;
-      const r = element.getBoundingClientRect();
-      const maxX = Math.max(0, innerWidth - (element.classList.contains('fr-manager-compact') ? 42 : 80));
-      const maxY = Math.max(0, innerHeight - (element.classList.contains('fr-manager-compact') ? 32 : 40));
-      const x = Math.max(0, Math.min(p.left, maxX));
-      const y = Math.max(0, Math.min(p.top, maxY));
-      if (Math.abs(r.left - x) > 3 || Math.abs(r.top - y) > 3) apply(p.left, p.top);
-    }, 1200);
     const header=[...element.querySelectorAll('.window-header,.header,.title,.window-title,.c-window-header,.name-window')]
       .find(node=>!node.closest('.content'))||element;
     header.style.setProperty('touch-action','none','important');
@@ -218,12 +202,8 @@
     const wm = E.windowManager;
     if (wm.getList?.().FROST_REAPER_TITAN?.length) {
       win = wm.getWndByNameAndId('FROST_REAPER_TITAN', 0);
-      const existingRoot = document.querySelector('.frost-reaper-window #fr-th-body')?.closest('.frost-reaper-window');
-      if (existingRoot) {
-        root = existingRoot;
-        installControls();
-        rememberWindowPosition(root, 'fr_th_window_position');
-      }
+      installControls();
+      rememberWindowPosition(document.querySelector('.frost-reaper-window'), 'fr_th_window_position');
       return !!win;
     }
     E.windowsData.name.FROST_REAPER_TITAN = 'FROST_REAPER_TITAN';
@@ -297,7 +277,9 @@
           disableSource: raw.disableSource ?? prev.disableSource ?? '',
           stunned: Number(raw.stunned ?? raw.isStunnedCount ?? prev.stunned ?? 0),
           prepared: raw.preparedSupercast ?? raw.prepared ?? prev.prepared ?? '',
-          effects: effectState.has(String(id)) ? prev.effects || [] : (Array.isArray(effects) ? effects.map(normalizeEffect) : Object.values(effects).flat().map(normalizeEffect))
+          // Never let our custom tracker replace effects supplied by the game.
+          effects: (Array.isArray(effects) ? effects : (effects && typeof effects === 'object' ? Object.values(effects).flat() : []))
+            .filter(e => e && typeof e === 'object').map(normalizeEffect)
         };
       }
     }
@@ -382,14 +364,25 @@
     if (!effectState.has(id)) effectState.set(id, {turn:0, effects:new Map()});
     return effectState.get(id);
   }
+  // Keep game-provided effects separate from effects inferred from combat logs.
+  // Previously publishEffects() overwrote warrior.effects with only the two
+  // manually tracked skills, hiding every other effect reported by the game.
   function publishEffects() {
-    for (const [id, data] of effectState) {
-      const warrior = state.warriors[id];
-      if (!warrior) continue;
-      warrior.effects = [...data.effects.values()].map(e => ({
-        ...e, elapsed: Math.max(0,e.duration - e.remaining), maxDuration:e.duration, remaining:e.remaining
-      }));
-    }
+    // Rendering reads both sources via displayEffects(); do not mutate native data.
+    scheduleRender();
+  }
+  function displayEffects(w) {
+    if (!w) return [];
+    const native = Array.isArray(w.effects) ? w.effects : [];
+    const tracked = [...(effectState.get(String(w.id))?.effects.values() || [])];
+    const keyOf = e => String(e.name || e.friendlyName || e.id || '').toLocaleLowerCase('pl').trim();
+    const seen = new Set(native.map(keyOf).filter(Boolean));
+    return [...native, ...tracked.filter(e => {
+      const key = keyOf(e);
+      if (key && seen.has(key)) return false;
+      if (key) seen.add(key);
+      return true;
+    })];
   }
   // Każde rzucenie efektu obszarowego to osobna instancja. Nie nadpisuj
   // poprzedniej instancji (także przy ponownym rzuceniu przez tę samą osobę).
@@ -564,7 +557,7 @@
   function teamEffects(team) {
     const members = Object.values(state.warriors).filter(w => team == null || String(w.team) === String(team));
     const found = [];
-    for (const w of members) for (const ef of (w.effects || [])) {
+    for (const w of members) for (const ef of displayEffects(w)) {
       found.push({ ...ef, warriorName: w.name, own: settings.highlightOwnEffects &&
         String(ef.casterId) === String(window.hero?.d?.id ?? window.hero?.id ?? '') });
     }
@@ -594,8 +587,7 @@
       return false;
     };
     for (const [id,w] of Object.entries(warriors)) {
-      const tracked = effectState.get(String(id));
-      const list = tracked ? [...tracked.effects.values()] : (w.effects || []);
+      const list = displayEffects(w);
       const output = belongsToAlly(id,w) ? ally : enemy;
       for (const ef of list) {
         if (/legbon_holytouch|dotyk anioła/i.test(`${ef.name || ''} ${ef.friendlyName || ''}`)) continue;
@@ -660,12 +652,13 @@
     parseLog,
     getDiagnostics: () => ({receivedLogs, trackedWarriors:effectState.size, trackedEffects:[...effectState.values()].reduce((n,v)=>n+v.effects.size,0), logKeys:[...observedLogKeys.entries()].sort((a,b)=>b[1]-a[1]).slice(0,25)}),
     getHealingCounters: () => [...healCounters.entries()].map(([id,v])=>({id,...v})),
-    getEffectDebug: () => ({version:'0.5.34',recentEffectLogs:[...recentEffectLogs],skillIds:[...observedSkillIds],turnActions:recentTurnLogs.slice(-15),actionCounts:[...lastActionMarkers],warriors:Object.values(state.warriors).map(w=>({id:w.id,name:w.name,team:w.team}))}),
+    getEffectDebug: () => ({version:'0.5.38',recentEffectLogs:[...recentEffectLogs],skillIds:[...observedSkillIds],turnActions:recentTurnLogs.slice(-15),actionCounts:[...lastActionMarkers],warriors:Object.values(state.warriors).map(w=>({id:w.id,name:w.name,team:w.team}))}),
     getTrackedEffects: () => [...effectState.entries()].map(([id,v]) => ({id, effects:[...v.effects.values()]})),
+    getDisplayedEffects: () => Object.values(state.warriors).map(w => ({id:w.id, name:w.name, nativeCount:w.effects?.length || 0, displayed:displayEffects(w).map(e => e.friendlyName || e.name)})),
     getState: () => typeof structuredClone === "function" ? structuredClone(state) : JSON.parse(JSON.stringify(state)),
     open: () => { localStorage.setItem('fr_manager_th_visible','true'); if (!win) nativeWindow(); else win.show?.(); render(); },
     close: () => { localStorage.setItem('fr_manager_th_visible','false'); win?.hide?.(); },
-    version: '0.5.34'
+    version: '0.5.38'
   };
   window.__FROST_REAPER_TITAN__ = api;
   window.FrostReaperTitan = api;
@@ -807,8 +800,7 @@
     if (w.disabled) parts.push(`<div class="fr-bad">Utrata tury ${esc(w.disableSource || '')}</div>`);
     if (w.prepared) parts.push(`<div class="fr-bad">${esc(w.prepared)}</div>`);
     if (settings.showTeamEffects) {
-      const tracked = effectState.get(String(w.id));
-      const effects = tracked ? [...tracked.effects.values()] : (w.effects || []);
+      const effects = displayEffects(w);
       for (const e of effects) {
         if (/legbon_holytouch|dotyk anioła/i.test(`${e.name || ''} ${e.friendlyName || ''}`)) continue;
         const cls = e.casterTeam != null && w.team != null && String(e.casterTeam) === String(w.team) ? 'fr-good' : 'fr-bad';
@@ -835,8 +827,7 @@
       // W razie ponownego użycia DOM przez grę aktualizuj bazową treść.
       if (original && !original.includes('<frostReaperEffects>')) tipBase.set(el, original);
       const base = (tipBase.get(el) || original).replace(/<frostReaperEffects>[\s\S]*?<\/frostReaperEffects>/g, '');
-      const tracked = effectState.get(String(w.id));
-      const effects = tracked ? [...tracked.effects.values()] : (w.effects || []);
+      const effects = displayEffects(w);
       const lines = effects.filter(e => !/legbon_holytouch|dotyk anioła/i.test(`${e.name || ''} ${e.friendlyName || ''}`)).map(e => {
         const remaining = e.remaining ?? (e.maxDuration != null ? e.maxDuration - (e.elapsed || 0) : null);
         return `<div style="color:#e8c16b">${esc(e.friendlyName || e.name)}${remaining != null ? ` — ${Math.max(0,Number(remaining))} tur` : ''}</div>`;
@@ -856,7 +847,8 @@
 
   const boot = () => {
     if (nativeWindow()) {
-      // Kontrolki są instalowane podczas renderowania; nie obserwujemy całego DOM gry.
+      const observer = new MutationObserver(() => { if (!document.querySelector('.fr-th #fr-th-body')) return; installControls(); });
+      observer.observe(document.body, { childList: true, subtree: true });
     } else setTimeout(boot, 1000);
   };
   boot();
