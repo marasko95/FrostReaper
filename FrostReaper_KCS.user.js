@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.1
+// @version      0.3.2
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.3.1';
+    const ADDON_VERSION = 'FR-KCS-0.3.2';
     const RUNTIME_KEY = '__frostReaperTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-frostReaper-tepekamyki-runtime';
 
@@ -298,19 +298,19 @@
     const GROUP_ACTION_QUIET_MS = 2500;
     const RESP_CYCLE_GUARD_MAX_AGE_MS = 24 * 60 * 60 * 1000;
     const RESP_GUARD_WAKEUP_GRACE_MS = 10 * 1000;
-    const FALLBACK_RUN_MS = 3000;
+    const FALLBACK_RUN_MS = 1200;
     // Lekki, niezależny od Lootloga polling stanu kamieni. MutationObserver
     // nadal reaguje natychmiast, a ten zegar wyłapuje zmianę cooldownu także
     // wtedy, gdy silnik gry nie zmieni żadnego obserwowanego elementu DOM.
-    const STONE_READINESS_POLL_MS = 1500;
+    const STONE_READINESS_POLL_MS = 750;
     // Po przejściu kolejki na inną E2 całkowity czas do wysłania komendy jest
     // losowany raz. Zawiera także końcową kontrolę celu i blokadę wyścigu kart.
     const AUTO_NEXT_TARGET_DELAY_MIN_MS = 500;
     const AUTO_NEXT_TARGET_DELAY_MAX_MS = 2500;
     const AUTO_USE_RECHECK_DELAY_MS = 260;
     const RUN_DEBOUNCE_MS = 60;
-    const ITEM_SCAN_CACHE_MS = 5000;
-    const INVENTORY_OBSERVER_REBIND_MS = 5000;
+    const ITEM_SCAN_CACHE_MS = 1200;
+    const INVENTORY_OBSERVER_REBIND_MS = 2500;
     const FRESH_SELECTION_DELAY_MS = 80;
     const TOUCH_TAP_MAX_MOVE_PX = 12;
     const TOUCH_TAP_MAX_DURATION_MS = 650;
@@ -2055,7 +2055,7 @@
         const now = Date.now();
         if (
             !force &&
-            now - teleportSnapshotCache.checkedAt < FALLBACK_RUN_MS &&
+            now - teleportSnapshotCache.checkedAt < ITEM_SCAN_CACHE_MS &&
             teleportSnapshotCache.items.every(item => item.el?.isConnected)
         ) {
             return teleportSnapshotCache.items;
@@ -3540,14 +3540,23 @@
     let scheduledRunTimer = null;
     const observedInventoryRoots = new WeakSet();
 
+    let scheduledRunDueAt = Infinity;
     function scheduleRun(delay = RUN_DEBOUNCE_MS, invalidateItems = false) {
         if (invalidateItems) invalidateTeleportItemCache();
-        if (scheduledRunTimer !== null) return;
-
+        const wait = Math.max(0, Number(delay) || 0);
+        const dueAt = Date.now() + wait;
+        // Pilne zdarzenie Lootloga / ekwipunku nie może utknąć za starszym
+        // odświeżeniem zaplanowanym na później.
+        if (scheduledRunTimer !== null) {
+            if (dueAt >= scheduledRunDueAt) return;
+            clearTimeout(scheduledRunTimer);
+        }
+        scheduledRunDueAt = dueAt;
         scheduledRunTimer = setTimeout(() => {
             scheduledRunTimer = null;
+            scheduledRunDueAt = Infinity;
             run();
-        }, delay);
+        }, wait);
     }
 
     const inventoryMutationObserver = new MutationObserver(() => {
@@ -5668,6 +5677,13 @@
 
     window.addEventListener('frostReaper:lootlog-source-changed', () => {
         scheduleRun(0, true);
+    });
+    // Powrót do karty / ponowne połączenie sieciowe: od razu pobierz świeży
+    // snapshot Lootloga i ponownie przeskanuj kamienie (bez automatycznego użycia).
+    window.addEventListener('focus', () => scheduleRun(0, true));
+    window.addEventListener('online', () => scheduleRun(0, true));
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) scheduleRun(0, true);
     });
     startLegendaryPacketMonitoring();
     window.addEventListener('pagehide', detachLootlogApi, { once: true });
