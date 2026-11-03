@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.5.5
+// @version      2.5.7
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -885,6 +885,36 @@
     let pendingRestoreBuild = null;
     let lastBuildRequest = {id:null,at:0};
     const BUILD_RETRY_MS = 850;
+    // Zestaw sprzed automatycznej zmiany PvP; zapamiętywany tylko raz.
+    let prePvpBuild = null;
+    let pvpBuildActive = false;
+    let pvpLastSeenAt = 0;
+    let pvpTargetKey = null;
+    let pvpTargetStableSince = 0;
+    const PVP_TARGET_STABILITY_MS = 350;
+    const PVP_RESTORE_DELAY_MS = 1400;
+
+    function restorePvpBuild() {
+        if (!pvpBuildActive || prePvpBuild == null) return;
+        if (window.Engine?.battle?.show || getPartyInfo().inParty) return;
+        if (Date.now() - pvpLastSeenAt < PVP_RESTORE_DELAY_MS) return;
+        if (!config.enabled) return;
+        const target = prePvpBuild;
+        if (currentBuildId() === target) {
+            pvpBuildActive = false;
+            prePvpBuild = null;
+            setStatus('Przywrócono zestaw: ' + getBuildLabel(target));
+            return;
+        }
+        if (setBuildDirect(target, 'restore-after-pvp')) {
+            // Zostaw stan do chwili potwierdzenia przez silnik gry.
+            setStatus('Przywracanie zestawu: ' + getBuildLabel(target));
+        }
+    }
+
+    // Potwierdzaj zmianę również bez kolejnego ataku.
+    setInterval(restorePvpBuild, 300);
+
 
     function currentBuildId(){
         try {return Number(window.Engine?.buildsManager?.getBuildsCommons?.()?.getCurrentId?.()) || null;}
@@ -917,7 +947,9 @@
             }
             if (!wasInParty) {
                 // Zapis tylko przy pierwszym wejściu, nigdy podczas kolejnych odświeżeń.
-                prePartyBuild = currentBuildId();
+                prePartyBuild = prePvpBuild ?? currentBuildId();
+                prePvpBuild = null;
+                pvpBuildActive = false;
                 pendingRestoreBuild = null;
                 wasInParty = true;
                 lastNearbyPlayer = null;
@@ -998,10 +1030,19 @@
                 return false;
             }
 
+            const before = currentBuildId();
+            if (!pvpBuildActive && before != null && before !== id) {
+                prePvpBuild = before;
+                pvpBuildActive = true;
+            }
+            pvpLastSeenAt = Date.now();
             const success = setBuildDirect(id, "pvp");
 
             if (success) {
                 setStatus("Zmiana zestawu: " + getBuildLabel(id) + ".");
+            } else if (before != null && before !== id && prePvpBuild === before) {
+                prePvpBuild = null;
+                pvpBuildActive = false;
             }
 
             return success;
@@ -1090,13 +1131,17 @@
 
             if (!canAutoSwitchForPvP()) {
                 lastNearbyPlayer = null;
+                pvpTargetKey = null;
                 return;
             }
 
             const Engine = window.Engine;
 
             if (!Engine?.hero?.d) return;
-            if (Engine.battle?.show) return;
+            if (Engine.battle?.show) {
+                if (pvpBuildActive) pvpLastSeenAt = Date.now();
+                return;
+            }
 
             const myX = Number(Engine.hero.d.x);
             const myY = Number(Engine.hero.d.y);
@@ -1105,7 +1150,7 @@
 
             const players = Engine.others?.getDrawableList?.() || [];
 
-            const nearby = players
+            const onMap = players
                 .filter(p =>
                     p &&
                     p.isPlayer &&
@@ -1132,25 +1177,45 @@
                         playerData: p.d || p
                     };
                 })
-                .filter(p => p && p.distance <= DETECTION_RADIUS)
+                .filter(Boolean)
                 .sort((a, b) => a.distance - b.distance);
 
-            if (!nearby.length) {
+            // Liczymy przeciwników na CAŁEJ mapie, nie tylko w promieniu 2 pól.
+            const mapEnemies = onMap.filter(p => !isFriendlyPlayer(p.playerData));
+            const soloEnemy = mapEnemies.length === 1;
+
+            // Jeden wróg: zmiana natychmiast, niezależnie od odległości.
+            // Kilku wrogów: dotychczasowa bezpieczniejsza reguła bliskości.
+            const candidates = soloEnemy
+                ? mapEnemies
+                : mapEnemies.filter(p => p.distance <= DETECTION_RADIUS);
+            if (!candidates.length) {
                 lastNearbyPlayer = null;
+                pvpTargetKey = null;
                 return;
             }
-
-            const target = nearby[0];
+            const target = candidates[0];
             const targetKey = target.id + ":" + target.profession;
 
-            if (targetKey === lastNearbyPlayer) return;
+            if (targetKey !== pvpTargetKey) {
+                pvpTargetKey = targetKey;
+                pvpTargetStableSince = Date.now();
+                lastNearbyPlayer = null;
+                if (!soloEnemy) return;
+            }
+            if (!soloEnemy && Date.now() - pvpTargetStableSince < PVP_TARGET_STABILITY_MS) return;
+            pvpLastSeenAt = Date.now();
+
+            // Ponów, jeśli gra nie zastosowała poprzedniego zestawu.
+            const desiredBuild = Number(config.mappings[target.profession] || 1);
+            if (targetKey === lastNearbyPlayer && currentBuildId() === desiredBuild) return;
 
             lastNearbyPlayer = targetKey;
 
-            console.log("[AutoSkill PvP] Gracz w pobliżu:", target);
+            console.log("[AutoSkill PvP] Cel PvP:", { ...target, soloEnemy, enemiesOnMap: mapEnemies.length });
 
             setStatus(
-                "W pobliżu: " + target.nick +
+                (soloEnemy ? "Jedyny wróg na mapie: " : "W pobliżu: ") + target.nick +
                 " (" + target.distance + " pól) — " +
                 target.profession
             );
@@ -1407,7 +1472,7 @@
 
     save();
 
-    console.log("[AutoSkill PvP] Wersja 2.5.1 FROST REAPER załadowana.");
+    console.log("[AutoSkill PvP] Wersja 2.5.7 FROST REAPER załadowana.");
     console.log("[AutoSkill PvP] Nazwy zestawów:", getBuildNames());
     console.log("[AutoSkill PvP] Stan grupy:", getPartyInfo());
     console.log("[AutoSkill PvP] Build grupowy:", config.groupBuild);
