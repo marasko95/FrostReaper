@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.7
+// @version      0.2.8
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.2.6';
+    const ADDON_VERSION = 'FR-KCS-0.2.8';
     const RUNTIME_KEY = '__garbatyTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-garbaty-tepekamyki-runtime';
 
@@ -5548,7 +5548,7 @@
                     tipLength: getItemTipText(el).length
                 })) };
         },
-        version: '0.2.2',
+        version: '0.2.8',
         openSettings: () => { openSettings(); return true; },
         showWidget: () => frKcsSetVisible(true),
         hideWidget: () => frKcsSetVisible(false),
