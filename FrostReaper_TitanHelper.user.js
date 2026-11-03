@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - TitanHelper module
 // @namespace    frost-reaper
-// @version      0.5.35
+// @version      0.5.36
 // @description  Niezależny moduł TitanHelper dla Frost Reaper (natywne okno Margonem).
 // @match        *://*.margonem.pl/*
 // @match        *://margonem.pl/*
@@ -162,6 +162,22 @@
       setTimeout(()=>{if(!active)apply(saved.left,saved.top)},250);
       setTimeout(()=>{if(!active)apply(saved.left,saved.top)},1000);
     }
+    // Margonem po zmianie postaci / ponownym show() potrafi nadpisać left/top.
+    // Lekki watchdog jednego okna (bez MutationObserver całej gry).
+    // Odczytujemy pozycję z localStorage za każdym razem, więc Reset pozycji nadal działa.
+    const frPositionWatch = setInterval(() => {
+      if (!element.isConnected) { clearInterval(frPositionWatch); return; }
+      if (active) return;
+      let p;
+      try { p = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return; }
+      if (!Number.isFinite(p?.left) || !Number.isFinite(p?.top)) return;
+      const r = element.getBoundingClientRect();
+      const maxX = Math.max(0, innerWidth - (element.classList.contains('fr-manager-compact') ? 42 : 80));
+      const maxY = Math.max(0, innerHeight - (element.classList.contains('fr-manager-compact') ? 32 : 40));
+      const x = Math.max(0, Math.min(p.left, maxX));
+      const y = Math.max(0, Math.min(p.top, maxY));
+      if (Math.abs(r.left - x) > 3 || Math.abs(r.top - y) > 3) apply(p.left, p.top);
+    }, 1200);
     const header=[...element.querySelectorAll('.window-header,.header,.title,.window-title,.c-window-header,.name-window')]
       .find(node=>!node.closest('.content'))||element;
     header.style.setProperty('touch-action','none','important');
@@ -841,4 +857,10 @@
     } else setTimeout(boot, 1000);
   };
   boot();
+  // Odtwarzanie okna po wymianie UI przez grę.
+  setInterval(() => {
+    if (document.querySelector('.frost-reaper-window #fr-th-body')) return;
+    win = null; root = null;
+    nativeWindow();
+  }, 2500);
 })();

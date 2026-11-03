@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.3.7
+// @version      0.3.9
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -175,12 +175,10 @@
       ${tab==='active'?`
         ${moduleRow('th','TitanHelper (TH)','Widoczność okna; działanie skryptu pozostaje aktywne')}
         ${moduleRow('as','Auto Skill (AS)','Widoczność okna; automat pozostaje aktywny')}
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Szybki KCS</div><div class="fr-mgr-muted">Widoczność kamienia; AUTO ustawiane osobno</div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" ${installed.kcs?'':'disabled'}>Ustawienia</button></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title" style="display:flex;align-items:center;gap:7px">Szybki KCS <button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" title="Ustawienia KCS: hotkey, AUTO i blokada pozycji" aria-label="Ustawienia Szybkiego KCS" ${installed.kcs?'':'disabled'} style="margin-left:0;padding:3px 5px;line-height:1">${gearSVG}</button></div><div class="fr-mgr-muted">Hotkey, AUTO i blokada pod zębatką</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
         <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">${upgradeEnabled()?'Moduł uruchomiony':'Moduł wyłączony • bez automatu i nasłuchów'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="upgrade-enabled" ${upgradeEnabled()?'checked':''}></div>
         ${upgradeEnabled()?`<div class="fr-mgr-row"><div class="fr-mgr-title">Panel Ulepszarki</div><button type="button" class="fr-mgr-reset" data-fr-action="upgrade-toggle">${settings.upgradeOpen===false?'Rozwiń':'Zwiń'}</button></div><div id="fr-upgrade-slot" class="fr-upgrade-slot"></div>`:''}
-        ${settings.settingsOpen?`<div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • AUTO</div><div class="fr-mgr-muted">${kcs?.isAutoRestricted?.()?'Niedostępne dla tej postaci':'Domyślnie wyłączone'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-auto" ${kcs?.getAutoEnabled?.()?'checked':''} ${!kcs||kcs?.isAutoRestricted?.()?'disabled':''}></div>
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Blokada pozycji</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-lock" ${kcs?.getLocked?.()?'checked':''} ${!kcs?'disabled':''}></div>
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Skrót klawiszowy</div><div class="fr-mgr-muted">${kcs?.getHotkey?.()||'Nie ustawiono'}</div></div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-hotkey" ${kcs?'':'disabled'}>Ustaw</button></div>`:''}
+
       `:`
         <div class="fr-mgr-note">Instalator otwiera link do pliku .user.js w Tampermonkey. Sam Manager nie instaluje skryptów w tle. Podawaj tylko zaufane adresy.</div>
         ${installRow('th','TitanHelper (TH)')}
@@ -222,6 +220,22 @@
       setTimeout(() => { if (!active) apply(saved.left, saved.top); }, 250);
       setTimeout(() => { if (!active) apply(saved.left, saved.top); }, 1000);
     }
+    // Margonem po zmianie postaci / ponownym show() potrafi nadpisać left/top.
+    // Lekki watchdog jednego okna (bez MutationObserver całej gry).
+    // Odczytujemy pozycję z localStorage za każdym razem, więc Reset pozycji nadal działa.
+    const frPositionWatch = setInterval(() => {
+      if (!element.isConnected) { clearInterval(frPositionWatch); return; }
+      if (active) return;
+      let p;
+      try { p = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return; }
+      if (!Number.isFinite(p?.left) || !Number.isFinite(p?.top)) return;
+      const r = element.getBoundingClientRect();
+      const maxX = Math.max(0, innerWidth - (element.classList.contains('fr-manager-compact') ? 42 : 80));
+      const maxY = Math.max(0, innerHeight - (element.classList.contains('fr-manager-compact') ? 32 : 40));
+      const x = Math.max(0, Math.min(p.left, maxX));
+      const y = Math.max(0, Math.min(p.top, maxY));
+      if (Math.abs(r.left - x) > 3 || Math.abs(r.top - y) > 3) apply(p.left, p.top);
+    }, 1200);
     const header = [...element.querySelectorAll('.window-header,.header,.title,.window-title,.c-window-header,.name-window')]
       .find(node => !node.closest('#fr-manager-body')) || element;
     header.style.setProperty('touch-action', 'none', 'important');
@@ -402,12 +416,8 @@
           settings.upgradeOpen = settings.upgradeOpen === false;
           save(); draw(); return;
         }
-        if(ev.target?.dataset?.frAction==='kcs-settings'){
+        if(action?.dataset?.frAction==='kcs-settings'){
           window.FrostReaperKCS?.openSettings?.();
-          return;
-        }
-        if(ev.target?.dataset?.frAction==='kcs-hotkey'){
-          window.FrostReaperKCS?.startHotkeyRecording?.();
           return;
         }
         if(ev.target?.dataset?.frAction!=='reset-positions')return;
@@ -428,6 +438,12 @@
     else console.warn('[Frost Reaper Manager] Nie udało się podłączyć okna bez tworzenia duplikatów.');
   }
   boot();
+  // Przy przełączaniu postaci silnik potrafi wymienić całe okno.
+  setInterval(() => {
+    if (document.getElementById('fr-manager-body')) return;
+    wnd = null; el = null;
+    mount();
+  }, 2500);
   // Bez obserwatora całego DOM: poprzednio mutacja placeholdera
   // uruchamiała kolejną mutację i mogła zawiesić ładowanie gry.
   // Moduł sam zgłasza gotowość po stworzeniu panelu.

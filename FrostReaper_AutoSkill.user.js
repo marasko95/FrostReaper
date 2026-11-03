@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.5.3
+// @version      2.5.4
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -502,6 +502,22 @@
       setTimeout(()=>{if(!active)apply(saved.left,saved.top)},250);
       setTimeout(()=>{if(!active)apply(saved.left,saved.top)},1000);
     }
+    // Margonem po zmianie postaci / ponownym show() potrafi nadpisać left/top.
+    // Lekki watchdog jednego okna (bez MutationObserver całej gry).
+    // Odczytujemy pozycję z localStorage za każdym razem, więc Reset pozycji nadal działa.
+    const frPositionWatch = setInterval(() => {
+      if (!element.isConnected) { clearInterval(frPositionWatch); return; }
+      if (active) return;
+      let p;
+      try { p = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return; }
+      if (!Number.isFinite(p?.left) || !Number.isFinite(p?.top)) return;
+      const r = element.getBoundingClientRect();
+      const maxX = Math.max(0, innerWidth - (element.classList.contains('fr-manager-compact') ? 42 : 80));
+      const maxY = Math.max(0, innerHeight - (element.classList.contains('fr-manager-compact') ? 32 : 40));
+      const x = Math.max(0, Math.min(p.left, maxX));
+      const y = Math.max(0, Math.min(p.top, maxY));
+      if (Math.abs(r.left - x) > 3 || Math.abs(r.top - y) > 3) apply(p.left, p.top);
+    }, 1200);
     const header=[...element.querySelectorAll('.window-header,.header,.title,.window-title,.c-window-header,.name-window')]
       .find(node=>!node.closest('.content'))||element;
     header.style.setProperty('touch-action','none','important');
@@ -590,6 +606,12 @@
     }
     let asAttempts=0;
     const asBoot=setInterval(()=>{if(mountASWindow()||++asAttempts>35)clearInterval(asBoot)},500);
+    // Gdy zmiana postaci usunie okno, utwórz je ponownie.
+    setInterval(() => {
+      if (document.querySelector('.fr-as-window #autoskill-pvp')) return;
+      asWindow = null; asElement = null;
+      mountASWindow();
+    }, 2500);
     const panel=document.createElement('div');
     panel.className='fr-as';
     panel.innerHTML=`
