@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.1
+// @version      0.2.2
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -5530,7 +5530,7 @@
         return next;
     }
     const frKcsApi = {
-        version: '0.2.1',
+        version: '0.2.2',
         openSettings: () => { openSettings(); return true; },
         showWidget: () => frKcsSetVisible(true),
         hideWidget: () => frKcsSetVisible(false),
@@ -5539,6 +5539,7 @@
         setAutoEnabled: frKcsSetAuto,
         isAutoRestricted: isAutoRestrictedForHero,
         getHotkey,
+        setHotkey: key => { setHotkey(key); renderFrostControls(); return getHotkey(); },
         startHotkeyRecording: () => { openSettings(); recordingHotkey = true; renderFrostControls(); },
         getLocked: () => locked,
         setLocked: value => {
