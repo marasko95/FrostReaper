@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.2
+// @version      0.3.3
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -3631,6 +3631,33 @@
                 color: #e8e4d8;
                 font-family: Arial, sans-serif;
             }
+            /* Podświetlenie wyłącznie kamienia aktualnie wybranego do użycia. */
+            #e2-teleport-slot.fr-kcs-ready {
+                border-color: #f6d76c !important;
+                animation: fr-kcs-ready-glow 1.65s ease-in-out infinite;
+            }
+            #e2-teleport-slot.fr-kcs-ready::after {
+                content: '';
+                position: absolute;
+                inset: -3px;
+                border: 2px solid #ffe68a;
+                border-radius: 9px;
+                pointer-events: none;
+                z-index: 4;
+                animation: fr-kcs-ready-ring 1.65s ease-in-out infinite;
+            }
+            @keyframes fr-kcs-ready-glow {
+                0%, 100% { box-shadow: 0 0 5px #e2b54d77, 0 2px 8px #000c; }
+                50% { box-shadow: 0 0 17px 4px #ffe278cc, 0 0 28px #f4b73a55, 0 2px 8px #000c; }
+            }
+            @keyframes fr-kcs-ready-ring {
+                0%, 100% { opacity: .38; transform: scale(1); }
+                50% { opacity: 1; transform: scale(1.045); }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                #e2-teleport-slot.fr-kcs-ready,
+                #e2-teleport-slot.fr-kcs-ready::after { animation: none !important; }
+            }
             #e2-teleport-slot .e2slot-control {
                 appearance: none;
                 border: 1px solid #80651f;
@@ -5281,6 +5308,7 @@
         if (recordingHotkey) return;
 
         if (!monsterId) {
+            slotEl.classList.remove('fr-kcs-ready');
             currentMonsterId = null;
             currentItemEl = null;
             delete iconEl.dataset.itemIconKey;
@@ -5308,6 +5336,7 @@
                 : selectedItem;
 
         if (readyItem) {
+            slotEl.classList.add('fr-kcs-ready');
             renderItemIcon(readyItem);
             currentItemEl = readyItem;
             slotEl.style.borderColor = respGuarded ? '#ffb02088' : '#80651f';
@@ -5330,6 +5359,7 @@
                 showTimerLabel('KCS');
             }
         } else {
+            slotEl.classList.remove('fr-kcs-ready');
             currentItemEl = null;
             delete iconEl.dataset.itemIconKey;
             const targetLabel = getMonsterTeleportShortLabel(monsterId);
@@ -5379,6 +5409,7 @@
     }
 
     function showIdleStatus(label, detail) {
+        slotEl?.classList.remove('fr-kcs-ready');
         currentMonsterId = null;
         currentItemEl = null;
         if (iconEl) {
