@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.3.7
+// @version      0.4.3
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -14,7 +14,7 @@
   'use strict';
   if (window.__FROST_REAPER_MANAGER__) return;
   const KEY = 'fr_manager_settings';
-  let settings; try { settings = { settingsOpen:false, addonsTab:'active', upgradeEnabled:true, ...JSON.parse(localStorage.getItem(KEY)||'{}') }; } catch (_) { settings = {settingsOpen:false,addonsTab:'active',upgradeEnabled:true}; }
+  let settings; try { settings = { settingsOpen:false, kcsSettingsOpen:false, addonsTab:'active', upgradeEnabled:true, ...JSON.parse(localStorage.getItem(KEY)||'{}') }; } catch (_) { settings = {settingsOpen:false,kcsSettingsOpen:false,addonsTab:'active',upgradeEnabled:true}; }
   const save = () => localStorage.setItem(KEY,JSON.stringify(settings));
   // Podpisy kamieni: niezalezne od widocznosci KCS, domyslnie wylaczone.
   const TELEPORT_SHORT_LABELS = Object.freeze({
@@ -140,12 +140,12 @@
   window.addEventListener('focus',syncStoneLabels);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncStoneLabels();});
 
+
   let wnd, el;
   const css = document.createElement('style');
   css.textContent = `
-    /* Podpisy kamieni sa osobnym dodatkiem zarzadzanym przez Managera. */
+    /* Osobny dodatek podpisow kamieni E2. */
     .fr-manager-stone-label{position:absolute!important;top:0!important;left:0!important;right:0!important;width:100%!important;z-index:7!important;pointer-events:none!important;color:#fff!important;font:900 9px/11px Arial,sans-serif!important;overflow:hidden!important;text-align:center!important;white-space:nowrap!important;letter-spacing:-.4px!important;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 3px #000!important}
-
     .fr-manager-window{min-width:290px!important}
     .fr-manager-window .fr-mgr{font:12px/1.5 Arial,sans-serif;color:#e8d7b2;padding:4px 6px;min-width:260px}
     .fr-manager-window .fr-mgr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(205,169,100,.3)}
@@ -294,6 +294,7 @@
       document.body.appendChild(existingUpgrade);
     }
     const tab = settings.addonsTab === 'install' ? 'install' : 'active';
+    const kcsApi = window.FrostReaperKCS;
     const installed = {th:!!window.FrostReaperTitan,as:!!window.AutoSkillPvP,kcs:!!window.FrostReaperKCS};
     const moduleRow=(id,name,desc)=>`<div class="fr-mgr-row"><div><div class="fr-mgr-title">${name}</div><div class="fr-mgr-muted">${desc}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="${id}" ${localStorage.getItem('fr_manager_'+id+'_visible')!=='false'?'checked':''} ${installed[id]?'':'disabled'} title="Widoczność okna"></div>`;
     const installRow=(id,name)=>`<div class="fr-mgr-row"><div><div class="fr-mgr-title">${name}</div><div class="fr-mgr-muted">${installed[id]?'Wykryto skrypt w grze':'Nie wykryto aktywnego skryptu'} • instalacja przez Tampermonkey</div></div><button class="fr-mgr-action" type="button" data-fr-action="install" data-fr-addon="${id}">Instaluj</button></div>`;
@@ -302,13 +303,11 @@
       ${tab==='active'?`
         ${moduleRow('th','TitanHelper (TH)','Widoczność okna; działanie skryptu pozostaje aktywne')}
         ${moduleRow('as','Auto Skill (AS)','Widoczność okna; automat pozostaje aktywny')}
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Szybki KCS</div><div class="fr-mgr-muted">Widoczność kamienia; AUTO ustawiane osobno</div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" ${installed.kcs?'':'disabled'}>Ustawienia</button></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Podpisy kamieni</div><div class="fr-mgr-muted">Krótkie skróty E2 w plecaku • bez miast</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="stone-labels" ${settings.stoneLabelsEnabled?'checked':''}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title" style="display:flex;align-items:center;gap:7px">Szybki KCS <button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" title="Pełne ustawienia KCS: Discord Lootloga, timery, hotkey, AUTO, kamienie" aria-label="Ustawienia Szybkiego KCS" ${installed.kcs?'':'disabled'} style="margin-left:0;padding:3px 5px;line-height:1">${gearSVG}</button></div><div class="fr-mgr-muted">Hotkey, AUTO i blokada pod zębatką</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Podpisy kamieni</div><div class="fr-mgr-muted">Skróty E2 w plecaku • bez podpisów miast</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="stone-labels" ${settings.stoneLabelsEnabled?'checked':''}></div>
         <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">${upgradeEnabled()?'Moduł uruchomiony':'Moduł wyłączony • bez automatu i nasłuchów'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="upgrade-enabled" ${upgradeEnabled()?'checked':''}></div>
         ${upgradeEnabled()?`<div class="fr-mgr-row"><div class="fr-mgr-title">Panel Ulepszarki</div><button type="button" class="fr-mgr-reset" data-fr-action="upgrade-toggle">${settings.upgradeOpen===false?'Rozwiń':'Zwiń'}</button></div><div id="fr-upgrade-slot" class="fr-upgrade-slot"></div>`:''}
-        ${settings.settingsOpen?`<div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • AUTO</div><div class="fr-mgr-muted">${kcs?.isAutoRestricted?.()?'Niedostępne dla tej postaci':'Domyślnie wyłączone'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-auto" ${kcs?.getAutoEnabled?.()?'checked':''} ${!kcs||kcs?.isAutoRestricted?.()?'disabled':''}></div>
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Blokada pozycji</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-lock" ${kcs?.getLocked?.()?'checked':''} ${!kcs?'disabled':''}></div>
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Skrót klawiszowy</div><div class="fr-mgr-muted">${kcs?.getHotkey?.()||'Nie ustawiono'}</div></div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-hotkey" ${kcs?'':'disabled'}>Ustaw</button></div>`:''}
+
       `:`
         <div class="fr-mgr-note">Instalator otwiera link do pliku .user.js w Tampermonkey. Sam Manager nie instaluje skryptów w tle. Podawaj tylko zaufane adresy.</div>
         ${installRow('th','TitanHelper (TH)')}
@@ -350,6 +349,22 @@
       setTimeout(() => { if (!active) apply(saved.left, saved.top); }, 250);
       setTimeout(() => { if (!active) apply(saved.left, saved.top); }, 1000);
     }
+    // Margonem po zmianie postaci / ponownym show() potrafi nadpisać left/top.
+    // Lekki watchdog jednego okna (bez MutationObserver całej gry).
+    // Odczytujemy pozycję z localStorage za każdym razem, więc Reset pozycji nadal działa.
+    const frPositionWatch = setInterval(() => {
+      if (!element.isConnected) { clearInterval(frPositionWatch); return; }
+      if (active) return;
+      let p;
+      try { p = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return; }
+      if (!Number.isFinite(p?.left) || !Number.isFinite(p?.top)) return;
+      const r = element.getBoundingClientRect();
+      const maxX = Math.max(0, innerWidth - (element.classList.contains('fr-manager-compact') ? 42 : 80));
+      const maxY = Math.max(0, innerHeight - (element.classList.contains('fr-manager-compact') ? 32 : 40));
+      const x = Math.max(0, Math.min(p.left, maxX));
+      const y = Math.max(0, Math.min(p.top, maxY));
+      if (Math.abs(r.left - x) > 3 || Math.abs(r.top - y) > 3) apply(p.left, p.top);
+    }, 1200);
     const header = [...element.querySelectorAll('.window-header,.header,.title,.window-title,.c-window-header,.name-window')]
       .find(node => !node.closest('#fr-manager-body')) || element;
     header.style.setProperty('touch-action', 'none', 'important');
@@ -412,6 +427,12 @@
     // Nie dodawaj kolejnego okna, jeśli gra już utworzyła poprzednie.
     const existingBody=document.getElementById('fr-manager-body');
     if(!existingBody){
+      // Nie twórz duplikatu, jeśli natywne okno jest już zarejestrowane.
+      const registered = wm.getList?.()?.FROST_REAPER_MANAGER;
+      if (registered?.length) {
+        wnd = wm.getWndByNameAndId?.('FROST_REAPER_MANAGER', 0) || wnd;
+        if (!document.getElementById('fr-manager-body')) return false;
+      }
       if(!wnd) {
         E.windowsData.name.FROST_REAPER_MANAGER='FROST_REAPER_MANAGER';
         wnd=wm.add({name:'FROST_REAPER_MANAGER',nameWindow:'FROST_REAPER_MANAGER',
@@ -518,26 +539,26 @@
         if(action?.dataset.frAction==='install'){
           const id=action.dataset.frAddon;
           if(!addonNames[id])return;
-          const key='fr_addon_install_url_'+id;
-          const value=prompt('Adres HTTPS pliku .user.js dla '+addonNames[id]+' (zaufane źródło):',localStorage.getItem(key)||'');
-          if(value===null)return;
-          const url=value.trim();
-          if(!/^https:\/\/[^\s]+\.user\.js(?:[?#][^\s]*)?$/i.test(url)){
-            alert('Podaj pełny adres HTTPS prowadzący do pliku .user.js.');return;
-          }
-          localStorage.setItem(key,url);
-          window.open(url,'_blank','noopener,noreferrer');return;
+          const links={
+            th:'https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_TitanHelper.user.js',
+            as:'https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_AutoSkill.user.js',
+            kcs:'https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_KCS.user.js'
+          };
+          const url=links[id];
+          if(url) window.open(url,'_blank','noopener,noreferrer');
+          return;
         }
         if(ev.target?.dataset?.frAction==='upgrade-toggle'){
           settings.upgradeOpen = settings.upgradeOpen === false;
           save(); draw(); return;
         }
-        if(ev.target?.dataset?.frAction==='kcs-settings'){
-          window.FrostReaperKCS?.openSettings?.();
-          return;
-        }
-        if(ev.target?.dataset?.frAction==='kcs-hotkey'){
-          window.FrostReaperKCS?.startHotkeyRecording?.();
+        if(action?.dataset?.frAction==='kcs-settings'){
+          const api = window.FrostReaperKCS;
+          if (typeof api?.openSettings === 'function') {
+            api.openSettings();
+          } else {
+            console.warn('[Frost Reaper Manager] KCS jeszcze nie udostępnił ustawień.');
+          }
           return;
         }
         if(ev.target?.dataset?.frAction!=='reset-positions')return;
