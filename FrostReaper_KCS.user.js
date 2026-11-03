@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.4
+// @version      0.3.5
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.3.2';
+    const ADDON_VERSION = 'FR-KCS-0.3.5';
     const RUNTIME_KEY = '__frostReaperTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-frostReaper-tepekamyki-runtime';
 
@@ -3646,6 +3646,23 @@
                 z-index: 4;
                 animation: fr-kcs-ready-ring 1.65s ease-in-out infinite;
             }
+            /* Podpisy teleportow w plecaku (nie zaslaniaja klikniecia). */
+            .fr-kcs-inventory-label {
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                width: 100% !important;
+                z-index: 7 !important;
+                pointer-events: none !important;
+                color: #fff !important;
+                font: 900 10px/11px Arial, sans-serif !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                letter-spacing: -.4px !important;
+                text-shadow: -1px -1px 0 #000, 1px -1px 0 #000,
+                    -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000 !important;
+            }
             /* Ten sam aktualnie wybrany kamien w plecaku. */
             .fr-kcs-inventory-active {
                 position: relative !important;
@@ -5318,10 +5335,48 @@
         if (slotEl.title !== value) slotEl.title = value;
     }
 
+    // Podpisy KCS w plecaku, niezaleznie od tego, czy Baddonz jest wlaczony.
+    // Nie nadpisujemy podpisow innych dodatkow i nie ingerujemy w item/tip.
+    const inventoryLabels = new Set();
+    function syncInventoryLabels() {
+        const current = new Set();
+        for (const item of getAllTeleportItems()) {
+            if (!item?.isConnected || item.closest?.('#e2-teleport-slot')) continue;
+            const foreign = item.querySelector?.('.custom-teleport-desc');
+            const own = item.querySelector?.(':scope > .fr-kcs-inventory-label');
+            if (foreign) {
+                if (own) own.remove();
+                continue;
+            }
+            const label = getTeleportShortLabel(item);
+            if (!label) {
+                if (own) own.remove();
+                continue;
+            }
+            current.add(item);
+            if (getComputedStyle(item).position === 'static') {
+                item.style.setProperty('position', 'relative');
+            }
+            let node = own;
+            if (!node) {
+                node = document.createElement('span');
+                node.className = 'fr-kcs-inventory-label';
+                item.appendChild(node);
+            }
+            if (node.textContent !== label) node.textContent = label;
+        }
+        for (const item of inventoryLabels) {
+            if (!current.has(item)) item.querySelector?.(':scope > .fr-kcs-inventory-label')?.remove();
+        }
+        inventoryLabels.clear();
+        for (const item of current) inventoryLabels.add(item);
+    }
+
     // Podswietl tylko fizyczny przedmiot wybrany do slotu KCS.
     // Porownanie po ID zabezpiecza przed podmiana elementu DOM po odswiezeniu plecaka.
     let highlightedInventoryItem = null;
     function syncInventoryHighlight(selected) {
+        syncInventoryLabels();
         const id = selected ? getItemGameId(selected) : null;
         let next = null;
         if (id !== null && id !== undefined && String(id) !== '') {
