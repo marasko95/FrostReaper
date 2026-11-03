@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.3
+// @version      0.2.4
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.2.0';
+    const ADDON_VERSION = 'FR-KCS-0.2.4';
     const RUNTIME_KEY = '__garbatyTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-garbaty-tepekamyki-runtime';
 
@@ -2571,8 +2571,8 @@
 
     function lootlogStatusText(status = lootlogSnapshot.status) {
         return ({
-            'api-missing': 'czekam na API Lootloga',
-            'api-not-ready': 'Lootlog jeszcze się uruchamia',
+            'api-missing': 'brak window.lootlogGameClientApi — uruchom dodatek Lootlog i odśwież grę',
+            'api-not-ready': 'API Lootloga niegotowe lub niezgodne (wymagana wersja 1)',
             'world-missing': 'nie udało się wykryć świata',
             'guilds-loading': 'czekam na listę Discordów',
             'guilds-empty': 'Lootlog nie udostępnił żadnego Discorda',
@@ -3947,6 +3947,9 @@
 
     function renderLootlogGuildSetting(force = false) {
         if (!settingsModal) return;
+        // Lista nie może bazować na starym snapshotcie.
+        // Odśwież ją przy otwarciu okna i podczas jego wyświetlania.
+        if (force) refreshLootlogSnapshot();
         const select = settingsModal.querySelector(
             '.e2slot-lootlog-guild'
         );
@@ -4127,7 +4130,22 @@
         });
     }
 
+    // Lootlog może udostępnić listę Discordów dopiero po zalogowaniu.
+    // Odświeżamy tylko otwarte okno ustawień, bez ingerencji w grę.
+    setInterval(() => {
+        if (!settingsModal?.classList.contains('open')) return;
+        try {
+            refreshLootlogSnapshot();
+            renderLootlogGuildSetting();
+        } catch (error) {
+            console.warn('[Szybki KCS] Odświeżanie Discordów:', error);
+        }
+    }, 1200);
+
     function openSettings() {
+        // Odczytaj świeży stan API, nawet jeśli Lootlog dołączył dopiero
+        // po uruchomieniu KCS.
+        syncLootlogApiBinding();
         const timers = readTimers();
         if (timers.ready) learnTimerCatalog(timers.sorted);
         settingsModal.querySelector('.e2slot-search').value = '';
