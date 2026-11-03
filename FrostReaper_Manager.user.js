@@ -14,9 +14,8 @@
   'use strict';
   if (window.__FROST_REAPER_MANAGER__) return;
   const KEY = 'fr_manager_settings';
-  let settings = { settingsOpen:false, ...JSON.parse(localStorage.getItem(KEY)||'{}') };
+  let settings; try { settings = { settingsOpen:false, addonsTab:'active', upgradeEnabled:true, ...JSON.parse(localStorage.getItem(KEY)||'{}') }; } catch (_) { settings = {settingsOpen:false,addonsTab:'active',upgradeEnabled:true}; }
   const save = () => localStorage.setItem(KEY,JSON.stringify(settings));
-
   // Podpisy kamieni: niezalezne od widocznosci KCS, domyslnie wylaczone.
   const TELEPORT_SHORT_LABELS = Object.freeze({
         'Źródło Narumi': 'MAZ',
@@ -144,9 +143,9 @@
   let wnd, el;
   const css = document.createElement('style');
   css.textContent = `
-
     /* Podpisy kamieni sa osobnym dodatkiem zarzadzanym przez Managera. */
     .fr-manager-stone-label{position:absolute!important;top:0!important;left:0!important;right:0!important;width:100%!important;z-index:7!important;pointer-events:none!important;color:#fff!important;font:900 9px/11px Arial,sans-serif!important;overflow:hidden!important;text-align:center!important;white-space:nowrap!important;letter-spacing:-.4px!important;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 3px #000!important}
+
     .fr-manager-window{min-width:290px!important}
     .fr-manager-window .fr-mgr{font:12px/1.5 Arial,sans-serif;color:#e8d7b2;padding:4px 6px;min-width:260px}
     .fr-manager-window .fr-mgr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(205,169,100,.3)}
@@ -209,6 +208,12 @@
     .fr-manager-window:not(.fr-manager-compact){min-width:340px!important;max-width:min(92vw,510px)!important}
     .fr-manager-window .fr-mgr{min-width:0!important}
     .fr-manager-window #fr-manager-body{max-height:min(80vh,720px);overflow-y:auto;overflow-x:hidden}
+    .fr-manager-window .fr-tabs{display:flex;gap:6px;padding:5px 0 9px;border-bottom:1px solid #9b7c48}
+    .fr-manager-window .fr-tab{flex:1;background:#2d2925;border:1px solid #84673d;color:#e5cc93;padding:7px;cursor:pointer;border-radius:4px}
+    .fr-manager-window .fr-tab.active{background:#604522;border-color:#d9b66d}
+    .fr-manager-window .fr-mgr-action{background:#463524;border:1px solid #a8884f;color:#f2d8a1;border-radius:4px;padding:5px 8px;cursor:pointer}
+    .fr-manager-window .fr-mgr-action:disabled{opacity:.45;cursor:not-allowed}
+    .fr-manager-window .fr-mgr-note{font-size:11px;color:#b8a789;padding:9px 4px;line-height:1.5}
     .fr-manager-window .fr-upgrade-slot{padding:6px 0;min-width:0;overflow:visible}
     .fr-manager-window #garbaty-ulepszara.fr-upgrade-docked{
       position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;
@@ -229,11 +234,32 @@
     gear.style.setProperty('visibility', settings.collapsed ? 'hidden' : 'visible', 'important');
     gear.style.setProperty('pointer-events', settings.collapsed ? 'none' : 'auto', 'important');
   }
+  const addonNames = {th:'TitanHelper',as:'AutoSkill',kcs:'Szybki KCS'};
+  function upgradeEnabled(){return settings.upgradeEnabled !== false;}
+  function setUpgradeEnabled(enabled){
+    settings.upgradeEnabled=Boolean(enabled);save();
+    if(enabled){
+      if(!window.FrostReaperUlepszarka) window.__FR_START_UPGRADE__?.();
+    } else {
+      window.FrostReaperUlepszarka?.destroy?.();
+    }
+    draw();
+  }
+  function setExternalVisible(id,visible){
+    const api = id==='th'?window.FrostReaperTitan:id==='as'?window.AutoSkillPvP:window.FrostReaperKCS;
+    localStorage.setItem('fr_manager_'+id+'_visible',String(visible));
+    if(id==='th'){if(visible)api?.open?.();else api?.close?.();}
+    else {if(visible)api?.showWidget?.();else api?.hideWidget?.();}
+  }
   let upgradePanel = null;
   let upgradeObserver = null;
   function dockUlepszarka() {
     const slot = document.getElementById('fr-upgrade-slot');
-    if (!slot) return;
+    if (!slot) {
+      const panel=document.getElementById('garbaty-ulepszara');
+      if(panel) panel.style.setProperty('display','none','important');
+      return;
+    }
     const found = document.getElementById('garbaty-ulepszara');
     if (!found) {
       if (!slot.querySelector('.fr-mgr-muted')) {
@@ -267,17 +293,30 @@
     if (existingUpgrade && existingUpgrade.parentElement?.id === 'fr-upgrade-slot') {
       document.body.appendChild(existingUpgrade);
     }
+    const tab = settings.addonsTab === 'install' ? 'install' : 'active';
+    const installed = {th:!!window.FrostReaperTitan,as:!!window.AutoSkillPvP,kcs:!!window.FrostReaperKCS};
+    const moduleRow=(id,name,desc)=>`<div class="fr-mgr-row"><div><div class="fr-mgr-title">${name}</div><div class="fr-mgr-muted">${desc}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="${id}" ${localStorage.getItem('fr_manager_'+id+'_visible')!=='false'?'checked':''} ${installed[id]?'':'disabled'} title="Widoczność okna"></div>`;
+    const installRow=(id,name)=>`<div class="fr-mgr-row"><div><div class="fr-mgr-title">${name}</div><div class="fr-mgr-muted">${installed[id]?'Wykryto skrypt w grze':'Nie wykryto aktywnego skryptu'} • instalacja przez Tampermonkey</div></div><button class="fr-mgr-action" type="button" data-fr-action="install" data-fr-addon="${id}">Instaluj</button></div>`;
     body.innerHTML = `<div class="fr-mgr">
-      <div class="fr-mgr-row"><div><div class="fr-mgr-title">TitanHelper (TH)</div><div class="fr-mgr-muted">Pokaż / ukryj okno TH (dymki pozostają aktywne)</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="th" ${thOn?'checked':''}></div>
-      <div class="fr-mgr-row"><div><div class="fr-mgr-title">Auto Skill (AS)</div><div class="fr-mgr-muted">Pokaż / ukryj okno AS (automatyzacja działa dalej)</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="as" ${asOn?'checked':''}></div>
-      <div class="fr-mgr-row"><div><div class="fr-mgr-title">Szybki KCS</div><div class="fr-mgr-muted">Widoczność kamienia (nie wyłącza AUTO)</div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" ${kcs?'':'disabled'}>Ustawienia</button></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${kcsOn?'checked':''}></div>
-      <div class="fr-mgr-row"><div><div class="fr-mgr-title">Podpisy kamieni</div><div class="fr-mgr-muted">Skróty E2 w plecaku • bez podpisów miast</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="stone-labels" ${settings.stoneLabelsEnabled?'checked':''}></div>
-      <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">Wbudowany moduł • cele, materiały, automat</div></div><button type="button" class="fr-mgr-reset" data-fr-action="upgrade-toggle">${settings.upgradeOpen===false?'Rozwiń':'Zwiń'}</button></div>
-      <div id="fr-upgrade-slot" class="fr-upgrade-slot"></div>
-      ${settings.settingsOpen?`<div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • AUTO</div><div class="fr-mgr-muted">${kcs?.isAutoRestricted?.()?'Niedostępne dla tej postaci':'Domyślnie wyłączone; włącz świadomie'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-auto" ${kcs?.getAutoEnabled?.()?'checked':''} ${!kcs||kcs?.isAutoRestricted?.()?'disabled':''}></div>
-      <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Blokada pozycji</div><div class="fr-mgr-muted">Nie pozwalaj przesuwać kamienia</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-lock" ${kcs?.getLocked?.()?'checked':''} ${!kcs?'disabled':''}></div>
-      <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Skrót klawiszowy</div><div class="fr-mgr-muted">${kcs?.getHotkey?.()||'Nie ustawiono'}</div></div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-hotkey" ${kcs?'':'disabled'}>Ustaw</button></div>`:''}
-      ${settings.settingsOpen?`<div class="fr-mgr-row"><div><div class="fr-mgr-title">Ustawienia menedżera</div><div class="fr-mgr-muted">Przełącznik ukrywa wyłącznie okno TH. Dymki działają dalej.</div><button type="button" data-fr-action="reset-positions" class="fr-mgr-reset">Reset pozycji okien</button></div></div>`:''}
+      <div class="fr-tabs"><button type="button" class="fr-tab ${tab==='active'?'active':''}" data-fr-action="tab" data-fr-tab="active">⚙ Dodatki</button><button type="button" class="fr-tab ${tab==='install'?'active':''}" data-fr-action="tab" data-fr-tab="install">↓ Instaluj</button></div>
+      ${tab==='active'?`
+        ${moduleRow('th','TitanHelper (TH)','Widoczność okna; działanie skryptu pozostaje aktywne')}
+        ${moduleRow('as','Auto Skill (AS)','Widoczność okna; automat pozostaje aktywny')}
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Szybki KCS</div><div class="fr-mgr-muted">Widoczność kamienia; AUTO ustawiane osobno</div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" ${installed.kcs?'':'disabled'}>Ustawienia</button></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Podpisy kamieni</div><div class="fr-mgr-muted">Krótkie skróty E2 w plecaku • bez miast</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="stone-labels" ${settings.stoneLabelsEnabled?'checked':''}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">${upgradeEnabled()?'Moduł uruchomiony':'Moduł wyłączony • bez automatu i nasłuchów'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="upgrade-enabled" ${upgradeEnabled()?'checked':''}></div>
+        ${upgradeEnabled()?`<div class="fr-mgr-row"><div class="fr-mgr-title">Panel Ulepszarki</div><button type="button" class="fr-mgr-reset" data-fr-action="upgrade-toggle">${settings.upgradeOpen===false?'Rozwiń':'Zwiń'}</button></div><div id="fr-upgrade-slot" class="fr-upgrade-slot"></div>`:''}
+        ${settings.settingsOpen?`<div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • AUTO</div><div class="fr-mgr-muted">${kcs?.isAutoRestricted?.()?'Niedostępne dla tej postaci':'Domyślnie wyłączone'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-auto" ${kcs?.getAutoEnabled?.()?'checked':''} ${!kcs||kcs?.isAutoRestricted?.()?'disabled':''}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Blokada pozycji</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-lock" ${kcs?.getLocked?.()?'checked':''} ${!kcs?'disabled':''}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">KCS • Skrót klawiszowy</div><div class="fr-mgr-muted">${kcs?.getHotkey?.()||'Nie ustawiono'}</div></div><button type="button" class="fr-mgr-reset" data-fr-action="kcs-hotkey" ${kcs?'':'disabled'}>Ustaw</button></div>`:''}
+      `:`
+        <div class="fr-mgr-note">Instalator otwiera link do pliku .user.js w Tampermonkey. Sam Manager nie instaluje skryptów w tle. Podawaj tylko zaufane adresy.</div>
+        ${installRow('th','TitanHelper (TH)')}
+        ${installRow('as','Auto Skill (AS)')}
+        ${installRow('kcs','Szybki KCS')}
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">Wbudowana w Managera • nie wymaga instalacji</div></div><span class="fr-mgr-muted">✓ Wbudowana</span></div>
+      `}
+      ${settings.settingsOpen?`<div class="fr-mgr-row"><div><div class="fr-mgr-title">Ustawienia menedżera</div><div class="fr-mgr-muted">Zewnętrzne skrypty wyłącza się całkowicie w Tampermonkey.</div><button type="button" data-fr-action="reset-positions" class="fr-mgr-reset">Reset pozycji okien</button></div></div>`:''}
     </div>`;
     dockUlepszarka();
   }
@@ -439,10 +478,8 @@
       body.dataset.frManagerBound='1';
       body.addEventListener('change',ev=>{
         const module=ev.target?.dataset?.frModule;
-        if(module==='stone-labels'){
-          settings.stoneLabelsEnabled=Boolean(ev.target.checked);
-          save();syncStoneLabels();return;
-        }
+        if(module==='stone-labels'){settings.stoneLabelsEnabled=Boolean(ev.target.checked);save();syncStoneLabels();return;}
+        if(module==='upgrade-enabled'){setUpgradeEnabled(ev.target.checked);return;}
         if(module==='kcs'){
           const visible=ev.target.checked;
           localStorage.setItem('fr_manager_kcs_visible',String(visible));
@@ -474,6 +511,23 @@
         if(visible)th?.open?.();else th?.close?.();
       });
       body.addEventListener('click',ev=>{
+        const action=ev.target?.closest?.('[data-fr-action]');
+        if(action?.dataset.frAction==='tab'){
+          settings.addonsTab=action.dataset.frTab;save();draw();return;
+        }
+        if(action?.dataset.frAction==='install'){
+          const id=action.dataset.frAddon;
+          if(!addonNames[id])return;
+          const key='fr_addon_install_url_'+id;
+          const value=prompt('Adres HTTPS pliku .user.js dla '+addonNames[id]+' (zaufane źródło):',localStorage.getItem(key)||'');
+          if(value===null)return;
+          const url=value.trim();
+          if(!/^https:\/\/[^\s]+\.user\.js(?:[?#][^\s]*)?$/i.test(url)){
+            alert('Podaj pełny adres HTTPS prowadzący do pliku .user.js.');return;
+          }
+          localStorage.setItem(key,url);
+          window.open(url,'_blank','noopener,noreferrer');return;
+        }
         if(ev.target?.dataset?.frAction==='upgrade-toggle'){
           settings.upgradeOpen = settings.upgradeOpen === false;
           save(); draw(); return;
@@ -512,6 +566,9 @@
 })();
 
 // === Wbudowany moduł Frost Reaper Ulepszarka ===
+window.__FR_START_UPGRADE__ = function(){
+  if(localStorage.getItem('fr_manager_settings')){try{if(JSON.parse(localStorage.getItem('fr_manager_settings')).upgradeEnabled===false)return;}catch(_){}}
+  if(window.FrostReaperUlepszarka)return;
 (function () {
     'use strict';
 
@@ -4276,6 +4333,7 @@
     let initAttempts = 0;
     function initialize() {
         if (destroyed || W.FrostReaperUlepszarka) return;
+        try { if (JSON.parse(localStorage.getItem('fr_manager_settings')||'{}').upgradeEnabled===false) return; } catch (_) {}
         const loadedHeroId = readHeroId();
 
         if (
@@ -4382,3 +4440,5 @@
 
     setTimeout(initialize, 2500);
 })();
+};
+window.__FR_START_UPGRADE__();
