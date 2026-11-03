@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.0
+// @version      0.3.1
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.3.0';
+    const ADDON_VERSION = 'FR-KCS-0.3.1';
     const RUNTIME_KEY = '__frostReaperTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-frostReaper-tepekamyki-runtime';
 
@@ -2255,7 +2255,7 @@
     function isSupportedLootlogApi(api) {
         return Boolean(
             api &&
-            Number(api.apiVersion) === 1 &&
+            [1, 2].includes(Number(api.apiVersion)) &&
             typeof api.getGuilds === 'function' &&
             typeof api.getTimers === 'function' &&
             typeof api.getSocketState === 'function' &&
@@ -2568,7 +2568,7 @@
     function lootlogStatusText(status = lootlogSnapshot.status) {
         return ({
             'api-missing': 'brak window.lootlogGameClientApi — uruchom dodatek Lootlog i odśwież grę',
-            'api-not-ready': 'API Lootloga niegotowe lub niezgodne (wymagana wersja 1)',
+            'api-not-ready': 'API Lootloga niegotowe lub niezgodne (obsługiwane wersje 1 i 2)',
             'world-missing': 'nie udało się wykryć świata',
             'guilds-loading': 'czekam na listę Discordów',
             'guilds-empty': 'Lootlog nie udostępnił żadnego Discorda',
@@ -5563,7 +5563,7 @@
             const snapshot = buildTeleportItemSnapshot(true);
             const selectedTimers = getSelectedSortedTimers(timers.sorted, chosen);
             return {
-                version: '0.3.0',
+                version: '0.3.1',
                 visible: localStorage.getItem('fr_manager_kcs_visible') !== 'false',
                 timersReady: timers.ready, timersStatus: timers.status,
                 timerCount: timers.sorted.length, selectedCount: chosen.size,
@@ -5605,7 +5605,7 @@
                     tipLength: getItemTipText(el).length
                 })) };
         },
-        version: '0.3.0',
+        version: '0.3.1',
         openSettings: () => { openSettings(); return true; },
         showWidget: () => frKcsSetVisible(true),
         hideWidget: () => frKcsSetVisible(false),
