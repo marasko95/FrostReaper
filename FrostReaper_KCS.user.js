@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.8
+// @version      0.2.9
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.2.8';
+    const ADDON_VERSION = 'FR-KCS-0.2.9';
     const RUNTIME_KEY = '__garbatyTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-garbaty-tepekamyki-runtime';
 
@@ -1343,21 +1343,22 @@
     // ── Odczyt nazwy mapy z tip (SI + NI) ─────────────────────────────────
     function extractMapFromHtml(html) {
         if (!html) return null;
-        const match = String(html).match(
-            /Teleportuje Postać na mapę:<br\s*\/?>(.*?)\s*\(\d+[, ]+\d+\)/i
+        // NI: TIPS.allTips[tip-id] jest HTML-em; zależnie od przedmiotu
+        // po dwukropku może być <br>, inny znacznik albo od razu nazwa.
+        // Parsowanie do tekstu usuwa różnice znaczników i encji.
+        const raw = String(html);
+        let text;
+        try {
+            const parsed = new DOMParser().parseFromString(raw, 'text/html');
+            text = parsed.body?.textContent || '';
+        } catch (_) {
+            text = raw.replace(/<[^>]*>/g, ' ');
+        }
+        text = text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ');
+        const match = text.match(
+            /Teleportuje\s+Posta[cć]\s+na\s+map[eę]\s*:\s*(.+?)\s*\(\s*\d+\s*,\s*\d+\s*\)/i
         );
-        if (!match) return null;
-
-        // Wyciągnięty fragment potrafi zawierać resztki tagów HTML (np. <span class="...">)
-        // owijające nazwę mapy oraz encje typu &nbsp; – to psuje ścisłe porównania nazw.
-        let name = match[1]
-            .replace(/<[^>]*>/g, '')      // usuń wszelkie tagi HTML
-            .replace(/&nbsp;/gi, ' ')     // rozwiń &nbsp;
-            .replace(/&amp;/gi, '&')      // rozwiń &amp;
-            .replace(/\s+/g, ' ')         // zredukuj wielokrotne spacje
-            .trim();
-
-        return name || null;
+        return match?.[1]?.trim() || null;
     }
 
     function getTipSourceElement(el) {
@@ -5536,6 +5537,24 @@
         return next;
     }
     const frKcsApi = {
+        diagnoseStoneMaps: () => {
+            const items = buildTeleportItemSnapshot(true);
+            const mapped = items.filter(item => item.map);
+            const relevant = mapped.filter(item =>
+                Object.values(MONSTER_TO_MAPS).some(maps =>
+                    maps.some(map => mapMatches(item.map, map))
+                )
+            );
+            return {
+                candidates: items.length,
+                mapped: mapped.length,
+                matchingE2Maps: relevant.length,
+                examples: relevant.slice(0, 12).map(item => ({
+                    map: item.map,
+                    cooldown: item.cooldown
+                }))
+            };
+        },
         diagnoseStones: () => {
             const candidates = document.querySelectorAll('.item[tip], .item[tip-id], .inventory-item, .inventory-grid [tip-id], .inventory-grid [tip], .inventory-grid [data-tip]');
             const stones = getAllTeleportItems(true);
@@ -5548,7 +5567,7 @@
                     tipLength: getItemTipText(el).length
                 })) };
         },
-        version: '0.2.8',
+        version: '0.2.9',
         openSettings: () => { openSettings(); return true; },
         showWidget: () => frKcsSetVisible(true),
         hideWidget: () => frKcsSetVisible(false),
