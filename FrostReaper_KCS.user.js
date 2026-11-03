@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.5
+// @version      0.2.6
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.2.5';
+    const ADDON_VERSION = 'FR-KCS-0.2.6';
     const RUNTIME_KEY = '__garbatyTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-garbaty-tepekamyki-runtime';
 
@@ -1380,7 +1380,7 @@
         const tipSource = getTipSourceElement(el);
         if (!tipSource) return null;
 
-        const tipAttr = tipSource.getAttribute('tip');
+        const tipAttr = tipSource.getAttribute('tip') || tipSource.getAttribute('data-tip');
         if (tipAttr) return extractMapFromHtml(tipAttr);
         const tipId = tipSource.getAttribute('tip-id');
         if (tipId && window.TIPS && window.TIPS.allTips) {
@@ -1418,7 +1418,7 @@
 
     function getAllTeleportItems(force = false) {
         const now = Date.now();
-        if (!force &&
+        if (!force && teleportItemCache.items.length &&
             now - teleportItemCache.checkedAt < ITEM_SCAN_CACHE_MS &&
             teleportItemCache.items.every(el => el?.isConnected)) {
             return teleportItemCache.items;
@@ -1426,10 +1426,11 @@
 
         const results = [];
         const seenElements = new Set();
-        // Nie wymagamy słowa "teleport" w tipie: część kamieni ma tylko
-        // informację "Przenosi na mapę" lub nazwę docelowej mapy.
-        // Skan ograniczony do ekwipunku, bez skanowania całego DOM.
-        const selector = INTERFACE === 'SI'
+        // Wrócono do oryginalnego rozpoznawania teleportów po opisie.
+        // Poprzednia wersja wymagała DODATKOWO mapy pasującej do
+        // MONSTER_TO_MAPS już na etapie skanowania ekwipunku, przez co
+        // odrzucała poprawne kamienie, zanim mogły być dopasowane dalej.
+        const selectors = INTERFACE === 'SI'
             ? '.item[tip], .item[tip-id], .item[data-tip]'
             : [
                 '.inventory-item',
@@ -1442,19 +1443,17 @@
                 '[data-window-name="inventory"] [data-tip]'
             ].join(',');
 
-        document.querySelectorAll(selector).forEach(candidate => {
+        document.querySelectorAll(selectors).forEach(candidate => {
             const el = INTERFACE === 'NI'
                 ? (candidate.closest?.('.inventory-item, [class*="item-id-"], [data-item-id]') || candidate)
                 : candidate;
             if (seenElements.has(el)) return;
             const tip = String(getItemTipText(el) || '');
             if (!tip) return;
-            // Bez mapy docelowej nie jest to rozpoznany kamień.
-            const map = extractMapFromHtml(tip);
-            if (!map) return;
-            // Musi wskazywać na mapę jednego z obsługiwanych E2.
-            const targets = Object.values(MONSTER_TO_MAPS).flat();
-            if (!targets.some(target => mapMatches(map, target))) return;
+            // Przyjmujemy zarówno oryginalny opis 'Teleportuje ...',
+            // jak i rozpoznaną mapę docelową. Nie filtrujemy tu po E2.
+            const isTeleport = /teleport|przenosi\s+(?:posta[cć]|na\s+map[eę])/i.test(tip);
+            if (!isTeleport && !extractMapFromHtml(tip)) return;
             seenElements.add(el);
             results.push(el);
         });
