@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.4
+// @version      0.2.5
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.2.4';
+    const ADDON_VERSION = 'FR-KCS-0.2.5';
     const RUNTIME_KEY = '__garbatyTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-garbaty-tepekamyki-runtime';
 
@@ -2458,23 +2458,24 @@
         syncLootlogApiBinding();
         const api = boundLootlogApi;
         const world = detectGameWorld();
-
-        if (!api) {
+        // Lista Discordów nie zależy od stanu połączenia socket, wykrycia
+        // świata ani gotowości timerów. Czytamy ją najpierw.
+        const guildApi = api || window.lootlogGameClientApi;
+        if (!guildApi || typeof guildApi.getGuilds !== 'function') {
             return setLootlogSnapshot({ status: 'api-missing', world });
         }
+        const guilds = readLootlogGuilds(guildApi);
+        if (!Array.isArray(guilds)) {
+            return setLootlogSnapshot({ status: 'guilds-loading', world });
+        }
+        if (!api) {
+            return setLootlogSnapshot({ status: 'api-not-ready', world, guilds });
+        }
         if (!api.ready) {
-            return setLootlogSnapshot({ status: 'api-not-ready', world });
+            return setLootlogSnapshot({ status: 'api-not-ready', world, guilds });
         }
         if (!world) {
-            return setLootlogSnapshot({ status: 'world-missing' });
-        }
-
-        const guilds = readLootlogGuilds(api);
-        if (!Array.isArray(guilds)) {
-            return setLootlogSnapshot({
-                status: 'guilds-loading',
-                world
-            });
+            return setLootlogSnapshot({ status: 'world-missing', guilds });
         }
 
         const guild = resolveLootlogGuild(guilds);
