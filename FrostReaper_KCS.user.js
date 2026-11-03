@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.2
+// @version      0.2.3
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -1362,8 +1362,8 @@
 
     function getTipSourceElement(el) {
         if (!el) return null;
-        if (el.hasAttribute?.('tip') || el.hasAttribute?.('tip-id')) return el;
-        return el.querySelector?.('[tip], [tip-id]') || null;
+        if (el.hasAttribute?.('tip') || el.hasAttribute?.('tip-id') || el.hasAttribute?.('data-tip')) return el;
+        return el.querySelector?.('[tip], [tip-id], [data-tip]') || null;
     }
 
     // Normalizacja do porównań: małe litery + pojedyncze spacje, bez skrajnych białych znaków.
@@ -1393,7 +1393,7 @@
         const tipSource = getTipSourceElement(el);
         if (!tipSource) return '';
 
-        const tipAttr = tipSource.getAttribute('tip');
+        const tipAttr = tipSource.getAttribute('tip') || tipSource.getAttribute('data-tip');
         if (tipAttr) return tipAttr;
         const tipId = tipSource.getAttribute('tip-id');
         if (tipId && window.TIPS && window.TIPS.allTips) {
@@ -1418,55 +1418,48 @@
 
     function getAllTeleportItems(force = false) {
         const now = Date.now();
-        if (
-            !force &&
+        if (!force &&
             now - teleportItemCache.checkedAt < ITEM_SCAN_CACHE_MS &&
-            teleportItemCache.items.every(el => el?.isConnected)
-        ) {
+            teleportItemCache.items.every(el => el?.isConnected)) {
             return teleportItemCache.items;
         }
 
         const results = [];
         const seenElements = new Set();
-        const interfaceType = INTERFACE;
-
-        // SI i NI mają osobne, rozłączne skanowanie. Szeroki selektor
-        // `[tip-id]` z NI nie może być uruchamiany na starym interfejsie.
-        if (interfaceType === 'SI') {
-            document.querySelectorAll('.item[tip]').forEach(el => {
-                if (seenElements.has(el)) return;
-                if (!String(getItemTipText(el)).toLowerCase().includes('teleport')) return;
-                seenElements.add(el);
-                results.push(el);
-            });
-        }
-
-        // NI: tip-id może być na przedmiocie albo na elemencie wewnętrznym.
-        if (interfaceType === 'NI') {
-            const niCandidates = document.querySelectorAll([
+        // Nie wymagamy słowa "teleport" w tipie: część kamieni ma tylko
+        // informację "Przenosi na mapę" lub nazwę docelowej mapy.
+        // Skan ograniczony do ekwipunku, bez skanowania całego DOM.
+        const selector = INTERFACE === 'SI'
+            ? '.item[tip], .item[tip-id], .item[data-tip]'
+            : [
                 '.inventory-item',
                 '.inventory-grid [class*="item-id-"]',
                 '.inventory-grid [tip-id]',
-                '[data-window-name="inventory"] [tip-id]'
-            ].join(','));
+                '.inventory-grid [tip]',
+                '.inventory-grid [data-tip]',
+                '[data-window-name="inventory"] [tip-id]',
+                '[data-window-name="inventory"] [tip]',
+                '[data-window-name="inventory"] [data-tip]'
+            ].join(',');
 
-            niCandidates.forEach(candidate => {
-                const el = candidate.closest?.(
-                    '.inventory-item, [class*="item-id-"], [data-item-id]'
-                ) || candidate;
-                if (seenElements.has(el)) return;
+        document.querySelectorAll(selector).forEach(candidate => {
+            const el = INTERFACE === 'NI'
+                ? (candidate.closest?.('.inventory-item, [class*="item-id-"], [data-item-id]') || candidate)
+                : candidate;
+            if (seenElements.has(el)) return;
+            const tip = String(getItemTipText(el) || '');
+            if (!tip) return;
+            // Bez mapy docelowej nie jest to rozpoznany kamień.
+            const map = extractMapFromHtml(tip);
+            if (!map) return;
+            // Musi wskazywać na mapę jednego z obsługiwanych E2.
+            const targets = Object.values(MONSTER_TO_MAPS).flat();
+            if (!targets.some(target => mapMatches(map, target))) return;
+            seenElements.add(el);
+            results.push(el);
+        });
 
-                const html = String(getItemTipText(el) || '');
-                if (!html.toLowerCase().includes('teleport')) return;
-                seenElements.add(el);
-                results.push(el);
-            });
-        }
-
-        teleportItemCache = {
-            checkedAt: now,
-            items: results
-        };
+        teleportItemCache = { checkedAt: now, items: results };
         return results;
     }
 
