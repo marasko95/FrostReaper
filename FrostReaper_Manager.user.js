@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.3.9
+// @version      0.4.0
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -298,6 +298,12 @@
     // Nie dodawaj kolejnego okna, jeśli gra już utworzyła poprzednie.
     const existingBody=document.getElementById('fr-manager-body');
     if(!existingBody){
+      // Nie twórz duplikatu, jeśli natywne okno jest już zarejestrowane.
+      const registered = wm.getList?.()?.FROST_REAPER_MANAGER;
+      if (registered?.length) {
+        wnd = wm.getWndByNameAndId?.('FROST_REAPER_MANAGER', 0) || wnd;
+        if (!document.getElementById('fr-manager-body')) return false;
+      }
       if(!wnd) {
         E.windowsData.name.FROST_REAPER_MANAGER='FROST_REAPER_MANAGER';
         wnd=wm.add({name:'FROST_REAPER_MANAGER',nameWindow:'FROST_REAPER_MANAGER',
@@ -438,12 +444,6 @@
     else console.warn('[Frost Reaper Manager] Nie udało się podłączyć okna bez tworzenia duplikatów.');
   }
   boot();
-  // Przy przełączaniu postaci silnik potrafi wymienić całe okno.
-  setInterval(() => {
-    if (document.getElementById('fr-manager-body')) return;
-    wnd = null; el = null;
-    mount();
-  }, 2500);
   // Bez obserwatora całego DOM: poprzednio mutacja placeholdera
   // uruchamiała kolejną mutację i mogła zawiesić ładowanie gry.
   // Moduł sam zgłasza gotowość po stworzeniu panelu.

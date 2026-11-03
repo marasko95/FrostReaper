@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.5.4
+// @version      2.5.5
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -606,12 +606,6 @@
     }
     let asAttempts=0;
     const asBoot=setInterval(()=>{if(mountASWindow()||++asAttempts>35)clearInterval(asBoot)},500);
-    // Gdy zmiana postaci usunie okno, utwórz je ponownie.
-    setInterval(() => {
-      if (document.querySelector('.fr-as-window #autoskill-pvp')) return;
-      asWindow = null; asElement = null;
-      mountASWindow();
-    }, 2500);
     const panel=document.createElement('div');
     panel.className='fr-as';
     panel.innerHTML=`

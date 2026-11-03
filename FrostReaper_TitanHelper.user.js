@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - TitanHelper module
 // @namespace    frost-reaper
-// @version      0.5.36
+// @version      0.5.37
 // @description  Niezależny moduł TitanHelper dla Frost Reaper (natywne okno Margonem).
 // @match        *://*.margonem.pl/*
 // @match        *://margonem.pl/*
@@ -218,8 +218,12 @@
     const wm = E.windowManager;
     if (wm.getList?.().FROST_REAPER_TITAN?.length) {
       win = wm.getWndByNameAndId('FROST_REAPER_TITAN', 0);
-      installControls();
-      rememberWindowPosition(document.querySelector('.frost-reaper-window'), 'fr_th_window_position');
+      const existingRoot = document.querySelector('.frost-reaper-window #fr-th-body')?.closest('.frost-reaper-window');
+      if (existingRoot) {
+        root = existingRoot;
+        installControls();
+        rememberWindowPosition(root, 'fr_th_window_position');
+      }
       return !!win;
     }
     E.windowsData.name.FROST_REAPER_TITAN = 'FROST_REAPER_TITAN';
@@ -852,15 +856,8 @@
 
   const boot = () => {
     if (nativeWindow()) {
-      const observer = new MutationObserver(() => { if (!document.querySelector('.fr-th #fr-th-body')) return; installControls(); });
-      observer.observe(document.body, { childList: true, subtree: true });
+      // Kontrolki są instalowane podczas renderowania; nie obserwujemy całego DOM gry.
     } else setTimeout(boot, 1000);
   };
   boot();
-  // Odtwarzanie okna po wymianie UI przez grę.
-  setInterval(() => {
-    if (document.querySelector('.frost-reaper-window #fr-th-body')) return;
-    win = null; root = null;
-    nativeWindow();
-  }, 2500);
 })();
