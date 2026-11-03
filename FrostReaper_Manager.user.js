@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.4.1
+// @version      0.4.2
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -176,14 +176,7 @@
       ${tab==='active'?`
         ${moduleRow('th','TitanHelper (TH)','Widoczność okna; działanie skryptu pozostaje aktywne')}
         ${moduleRow('as','Auto Skill (AS)','Widoczność okna; automat pozostaje aktywny')}
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title" style="display:flex;align-items:center;gap:7px">Szybki KCS <button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" title="Ustawienia KCS: hotkey, AUTO i blokada pozycji" aria-label="Ustawienia Szybkiego KCS" ${installed.kcs?'':'disabled'} style="margin-left:0;padding:3px 5px;line-height:1">${gearSVG}</button></div><div class="fr-mgr-muted">Hotkey, AUTO i blokada pod zębatką</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
-        ${settings.kcsSettingsOpen?`<div class="fr-mgr-kcs-settings" style="padding:9px 10px;margin:4px 0 8px;border:1px solid rgba(226,191,100,.45);border-radius:8px">
-          <div class="fr-mgr-title" style="margin-bottom:8px">⚙ Ustawienia Szybkiego KCS</div>
-          <div class="fr-mgr-row"><span>Hotkey</span><button type="button" class="fr-mgr-reset" data-fr-action="kcs-hotkey">${kcsApi?.getHotkey?.() || 'Brak'} — zmień</button></div>
-          <div class="fr-mgr-row"><span>AUTO</span><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-auto" ${kcsApi?.getAutoEnabled?.()?'checked':''} ${kcsApi?.isAutoRestricted?.()?'disabled':''}></div>
-          <div class="fr-mgr-row"><span>Blokada pozycji</span><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs-lock" ${kcsApi?.getLocked?.()?'checked':''}></div>
-          <div class="fr-mgr-muted">Hotkey: kliknij przycisk i naciśnij klawisz. Backspace usuwa skrót, Esc anuluje.</div>
-        </div>`:''}
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title" style="display:flex;align-items:center;gap:7px">Szybki KCS <button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" title="Pełne ustawienia KCS: Discord Lootloga, timery, hotkey, AUTO, kamienie" aria-label="Ustawienia Szybkiego KCS" ${installed.kcs?'':'disabled'} style="margin-left:0;padding:3px 5px;line-height:1">${gearSVG}</button></div><div class="fr-mgr-muted">Hotkey, AUTO i blokada pod zębatką</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
         <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">${upgradeEnabled()?'Moduł uruchomiony':'Moduł wyłączony • bez automatu i nasłuchów'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="upgrade-enabled" ${upgradeEnabled()?'checked':''}></div>
         ${upgradeEnabled()?`<div class="fr-mgr-row"><div class="fr-mgr-title">Panel Ulepszarki</div><button type="button" class="fr-mgr-reset" data-fr-action="upgrade-toggle">${settings.upgradeOpen===false?'Rozwiń':'Zwiń'}</button></div><div id="fr-upgrade-slot" class="fr-upgrade-slot"></div>`:''}
 
@@ -431,21 +424,12 @@
           save(); draw(); return;
         }
         if(action?.dataset?.frAction==='kcs-settings'){
-          settings.kcsSettingsOpen=!settings.kcsSettingsOpen;save();draw();
-          return;
-        }
-        if(action?.dataset?.frAction==='kcs-hotkey'){
-          const btn=action;
-          btn.textContent='Naciśnij klawisz…';
-          const handler=(keyEv)=>{
-            keyEv.preventDefault();keyEv.stopImmediatePropagation();
-            document.removeEventListener('keydown',handler,true);
-            if(keyEv.key!=='Escape'){
-              window.FrostReaperKCS?.setHotkey?.(keyEv.key==='Backspace'?'':keyEv.key);
-            }
-            draw();
-          };
-          document.addEventListener('keydown',handler,true);
+          const api = window.FrostReaperKCS;
+          if (typeof api?.openSettings === 'function') {
+            api.openSettings();
+          } else {
+            console.warn('[Frost Reaper Manager] KCS jeszcze nie udostępnił ustawień.');
+          }
           return;
         }
         if(ev.target?.dataset?.frAction!=='reset-positions')return;
