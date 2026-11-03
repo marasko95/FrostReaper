@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.2.9
+// @version      0.3.0
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,9 +22,9 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.2.9';
-    const RUNTIME_KEY = '__garbatyTepeKamykiRuntime';
-    const RUNTIME_ATTR = 'data-garbaty-tepekamyki-runtime';
+    const ADDON_VERSION = 'FR-KCS-0.3.0';
+    const RUNTIME_KEY = '__frostReaperTepeKamykiRuntime';
+    const RUNTIME_ATTR = 'data-frostReaper-tepekamyki-runtime';
 
     // Atrybut DOM jest wspólny również dla różnych kontekstów skryptów
     // (panel/Tampermonkey). Sama zmienna window nie zatrzymywała dwóch kopii,
@@ -258,8 +258,8 @@
     const STORAGE_KEY_SKIP_MISSING = 'e2slot_skip_missing_stone_v1';
     const STORAGE_KEY_SHOW_AUTO_BUTTON = 'e2slot_show_auto_button_v1';
     const STORAGE_KEY_CATALOG = 'e2slot_auto_catalog_v1';
-    const STORAGE_KEY_LOOTLOG_SOURCE = 'garbaty_lootlog_timer_source_v1';
-    const STORAGE_KEY_LEGACY_MISSING_TIMERS = 'garbaty_missing_e2_lootlog_v2';
+    const STORAGE_KEY_LOOTLOG_SOURCE = 'frostReaper_lootlog_timer_source_v1';
+    const STORAGE_KEY_LEGACY_MISSING_TIMERS = 'frostReaper_missing_e2_lootlog_v2';
     const STORAGE_KEY_AUTO_GUARD = 'e2slot_auto_guard_v2';
     const STORAGE_KEY_USE_GUARD = 'e2slot_use_guard_v2';
     const STORAGE_KEY_RESP_CYCLE_GUARDS = 'e2slot_resp_cycle_guards_v1';
@@ -2246,7 +2246,7 @@
 
         try {
             window.dispatchEvent(new CustomEvent(
-                'garbaty:lootlog-source-changed',
+                'frostReaper:lootlog-source-changed',
                 { detail: { guildId: value } }
             ));
         } catch (_) {}
@@ -3613,9 +3613,9 @@
     }
 
     function injectPanelStyles() {
-        if (document.getElementById('garbaty-e2slot-style')) return;
+        if (document.getElementById('frostReaper-e2slot-style')) return;
         const style = document.createElement('style');
-        style.id = 'garbaty-e2slot-style';
+        style.id = 'frostReaper-e2slot-style';
         style.textContent = `
             #e2-teleport-slot {
                 box-sizing: border-box;
@@ -3652,7 +3652,7 @@
                 background: linear-gradient(#3b1520, #1b1014);
                 box-shadow: inset 0 0 5px #7a2939;
             }
-            #garbaty-e2slot-settings {
+            #frostReaper-e2slot-settings {
                 position: fixed;
                 inset: 0;
                 z-index: 1000001;
@@ -3663,8 +3663,8 @@
                 font-family: Arial, sans-serif;
                 color: #dedbd2;
             }
-            #garbaty-e2slot-settings.open { display: flex; }
-            #garbaty-e2slot-settings .e2slot-modal-box {
+            #frostReaper-e2slot-settings.open { display: flex; }
+            #frostReaper-e2slot-settings .e2slot-modal-box {
                 width: min(390px, calc(100vw - 24px));
                 max-height: min(650px, calc(100vh - 24px));
                 display: flex;
@@ -3675,7 +3675,7 @@
                 background: #101410;
                 box-shadow: 0 10px 35px #000, inset 0 0 0 1px #242a20;
             }
-            #garbaty-e2slot-settings .e2slot-modal-head {
+            #frostReaper-e2slot-settings .e2slot-modal-head {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
@@ -3686,25 +3686,25 @@
                 font-size: 15px;
                 font-weight: 700;
             }
-            #garbaty-e2slot-settings .e2slot-close {
+            #frostReaper-e2slot-settings .e2slot-close {
                 border: 0;
                 background: transparent;
                 color: #aaa;
                 font-size: 20px;
                 cursor: pointer;
             }
-            #garbaty-e2slot-settings .e2slot-content {
+            #frostReaper-e2slot-settings .e2slot-content {
                 padding: 12px; overflow-y: auto; overflow-x: hidden;
                 min-height: 0; overscroll-behavior: contain;
                 touch-action: pan-y; -webkit-overflow-scrolling: touch;
             }
-            #garbaty-e2slot-settings .e2slot-help {
+            #frostReaper-e2slot-settings .e2slot-help {
                 margin: 0 0 9px;
                 color: #aaa;
                 font-size: 11px;
                 line-height: 1.35;
             }
-            #garbaty-e2slot-settings .e2slot-option {
+            #frostReaper-e2slot-settings .e2slot-option {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
@@ -3716,19 +3716,19 @@
                 background: #0b0e0b;
                 font-size: 12px;
             }
-            #garbaty-e2slot-settings .e2slot-lootlog-label {
+            #frostReaper-e2slot-settings .e2slot-lootlog-label {
                 display: flex;
                 min-width: 0;
                 flex: 1;
                 flex-direction: column;
                 gap: 2px;
             }
-            #garbaty-e2slot-settings .e2slot-lootlog-status {
+            #frostReaper-e2slot-settings .e2slot-lootlog-status {
                 color: #8e9288;
                 font-size: 9px;
                 line-height: 1.2;
             }
-            #garbaty-e2slot-settings .e2slot-lootlog-guild {
+            #frostReaper-e2slot-settings .e2slot-lootlog-guild {
                 box-sizing: border-box;
                 width: min(190px, 52%);
                 min-width: 130px;
@@ -3740,7 +3740,7 @@
                 color: #eee;
                 font-size: 10px;
             }
-            #garbaty-e2slot-settings .e2slot-skip-toggle {
+            #frostReaper-e2slot-settings .e2slot-skip-toggle {
                 min-width: 48px;
                 padding: 5px 7px;
                 border: 1px solid #66541f;
@@ -3751,12 +3751,12 @@
                 font-size: 10px;
                 font-weight: 700;
             }
-            #garbaty-e2slot-settings .e2slot-skip-toggle.on {
+            #frostReaper-e2slot-settings .e2slot-skip-toggle.on {
                 background: #19301c;
                 color: #8bdc91;
                 border-color: #477c4c;
             }
-            #garbaty-e2slot-settings .e2slot-search {
+            #frostReaper-e2slot-settings .e2slot-search {
                 box-sizing: border-box;
                 width: 100%;
                 padding: 8px 9px;
@@ -3766,13 +3766,13 @@
                 background: #090c09;
                 color: #eee;
             }
-            #garbaty-e2slot-settings .e2slot-actions {
+            #frostReaper-e2slot-settings .e2slot-actions {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 6px;
                 margin: 8px 0;
             }
-            #garbaty-e2slot-settings .e2slot-actions button {
+            #frostReaper-e2slot-settings .e2slot-actions button {
                 flex: 1;
                 padding: 6px;
                 border: 1px solid #66541f;
@@ -3783,7 +3783,7 @@
                 font-size: 10px;
                 font-weight: 700;
             }
-            #garbaty-e2slot-settings .e2slot-list {
+            #frostReaper-e2slot-settings .e2slot-list {
                 min-height: 130px;
                 max-height: min(330px, 42vh);
                 overflow-y: auto;
@@ -3795,7 +3795,7 @@
                 border-radius: 5px;
                 background: #0b0e0b;
             }
-            #garbaty-e2slot-settings .e2slot-row {
+            #frostReaper-e2slot-settings .e2slot-row {
                 display: flex;
                 align-items: center;
                 gap: 8px;
@@ -3804,10 +3804,10 @@
                 cursor: pointer;
                 font-size: 12px;
             }
-            #garbaty-e2slot-settings .e2slot-row:last-child { border-bottom: 0; }
-            #garbaty-e2slot-settings .e2slot-row:hover { background: #171c16; }
-            #garbaty-e2slot-settings .e2slot-name { flex: 1; min-width: 0; }
-            #garbaty-e2slot-settings .e2slot-check {
+            #frostReaper-e2slot-settings .e2slot-row:last-child { border-bottom: 0; }
+            #frostReaper-e2slot-settings .e2slot-row:hover { background: #171c16; }
+            #frostReaper-e2slot-settings .e2slot-name { flex: 1; min-width: 0; }
+            #frostReaper-e2slot-settings .e2slot-check {
                 display: flex;
                 align-items: center;
                 gap: 3px;
@@ -3815,14 +3815,14 @@
                 font-size: 9px;
                 cursor: pointer;
             }
-            #garbaty-e2slot-settings input[type="checkbox"] { accent-color: #c3942f; }
-            #garbaty-e2slot-settings .e2slot-empty {
+            #frostReaper-e2slot-settings input[type="checkbox"] { accent-color: #c3942f; }
+            #frostReaper-e2slot-settings .e2slot-empty {
                 padding: 22px 12px;
                 color: #888;
                 text-align: center;
                 font-size: 12px;
             }
-            #garbaty-e2slot-settings .e2slot-footer {
+            #frostReaper-e2slot-settings .e2slot-footer {
                 padding-top: 9px;
                 color: #9d9b92;
                 font-size: 10px;
@@ -3993,7 +3993,7 @@
 
     function buildSettingsModal() {
         settingsModal = document.createElement('div');
-        settingsModal.id = 'garbaty-e2slot-settings';
+        settingsModal.id = 'frostReaper-e2slot-settings';
         settingsModal.innerHTML = `
             <div class="e2slot-modal-box" role="dialog" aria-modal="true" aria-label="Auto teleport KCS">
                 <div class="e2slot-modal-head">
@@ -4398,9 +4398,9 @@
         const visited = new Set();
         let current = fn;
         while (typeof current === 'function' && !visited.has(current)) {
-            if (current.__garbatyTepeKamykiLegendHook) return true;
+            if (current.__frostReaperTepeKamykiLegendHook) return true;
             visited.add(current);
-            current = current.__garbatyOriginal;
+            current = current.__frostReaperOriginal;
         }
         return false;
     }
@@ -4436,8 +4436,8 @@
         }
 
         Object.defineProperties(wrappedLegendaryPacketHook, {
-            __garbatyTepeKamykiLegendHook: { value: true },
-            __garbatyOriginal: { value: original }
+            __frostReaperTepeKamykiLegendHook: { value: true },
+            __frostReaperOriginal: { value: original }
         });
         container[property] = wrappedLegendaryPacketHook;
         legendaryPacketHooks.push({ container, property, original, wrapper: wrappedLegendaryPacketHook });
@@ -5369,6 +5369,18 @@
         }
     }
 
+    function showIdleStatus(label, detail) {
+        currentMonsterId = null;
+        currentItemEl = null;
+        if (iconEl) {
+            delete iconEl.dataset.itemIconKey;
+            iconEl.textContent = label;
+            Object.assign(iconEl.style, {color:'#e5c04f',fontSize:'10px',fontWeight:'bold',textAlign:'center'});
+        }
+        hideTimerLabel();
+        setSlotTitle(detail);
+    }
+
     function run() {
         if (recordingHotkey) return;
 
@@ -5381,6 +5393,7 @@
         // nie został uznany za zbicie E2 albo zmianę celu.
         if (!timers.ready) {
             renderSlotFor(null, timerMap, null);
+            showIdleStatus('LOOT', `Lootlog: ${lootlogStatusText(timers.status)}. Kamienie są wykrywane niezależnie od timerów.`);
             updateAutoButton(`AUTO wstrzymane — ${lootlogStatusText(timers.status)}`);
             return;
         }
@@ -5390,6 +5403,7 @@
 
         if (sortedTimers.length === 0) {
             renderSlotFor(null, timerMap, null);
+            showIdleStatus('E2?', 'Lootlog nie zwrócił timerów E2. Sprawdź wybrany serwer i świat.');
             return;
         }
 
@@ -5405,10 +5419,16 @@
             timerMap,
             target ? target.item : null
         );
+        if (!target) {
+            const chosen = getSlotSelectedMonsterIds();
+            showIdleStatus(chosen.size ? 'E2?' : 'WYB', chosen.size
+                ? 'Brak pasującego celu w timerach Lootloga. Sprawdź listę E2 i serwer.'
+                : 'Nie wybrano żadnej E2 dla ręcznego slotu. Otwórz ustawienia KCS.');
+        }
         maybeAutoTeleport(sortedTimers, itemSnapshot);
     }
 
-    window.GarbatyTepeKamykiDebug = () => ({
+    window.frostReaperTepeKamykiDebug = () => ({
         version: ADDON_VERSION,
         interface: INTERFACE,
         interfacePath:
@@ -5537,6 +5557,24 @@
         return next;
     }
     const frKcsApi = {
+        diagnosePanel: () => {
+            const timers = readTimers();
+            const chosen = getSlotSelectedMonsterIds();
+            const snapshot = buildTeleportItemSnapshot(true);
+            const selectedTimers = getSelectedSortedTimers(timers.sorted, chosen);
+            return {
+                version: '0.3.0',
+                visible: localStorage.getItem('fr_manager_kcs_visible') !== 'false',
+                timersReady: timers.ready, timersStatus: timers.status,
+                timerCount: timers.sorted.length, selectedCount: chosen.size,
+                matchingTimers: selectedTimers.length,
+                teleportItems: snapshot.length,
+                mappedItems: snapshot.filter(x => x.map).length,
+                readyItems: snapshot.filter(x => x.map && !x.cooldown).length,
+                slotText: document.getElementById('e2-teleport-slot')?.innerText?.slice(0, 120) || '',
+                currentMap: getCurrentMapName()
+            };
+        },
         diagnoseStoneMaps: () => {
             const items = buildTeleportItemSnapshot(true);
             const mapped = items.filter(item => item.map);
@@ -5567,7 +5605,7 @@
                     tipLength: getItemTipText(el).length
                 })) };
         },
-        version: '0.2.9',
+        version: '0.3.0',
         openSettings: () => { openSettings(); return true; },
         showWidget: () => frKcsSetVisible(true),
         hideWidget: () => frKcsSetVisible(false),
@@ -5628,7 +5666,7 @@
         }
     });
 
-    window.addEventListener('garbaty:lootlog-source-changed', () => {
+    window.addEventListener('frostReaper:lootlog-source-changed', () => {
         scheduleRun(0, true);
     });
     startLegendaryPacketMonitoring();
@@ -5644,4 +5682,4 @@
 
 })();
 
-//# sourceURL=garbaty-protected-tepekamyki.js
+//# sourceURL=frostReaper-protected-tepekamyki.js
