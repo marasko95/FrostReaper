@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.4
+// @version      0.3.9
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.3.2';
+    const ADDON_VERSION = 'FR-KCS-0.3.9';
     const RUNTIME_KEY = '__frostReaperTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-frostReaper-tepekamyki-runtime';
 
@@ -2722,6 +2722,17 @@
         tracker.activeId = null;
         tracker.lastSeconds = Infinity;
         return null;
+    }
+
+    // Ręczny slot zawsze odzwierciedla AKTUALNĄ kolejność timerów LL.
+    // Nie stosujemy tu blokady poprzedniego celu (ta pozostaje w AUTO).
+    function pickNearestSlotTarget(sortedTimers, itemSnapshot, selected) {
+        const selectedTimers = getSelectedSortedTimers(sortedTimers, selected);
+        const timer = getSkipMissingStone()
+            ? selectedTimers.find(t => Boolean(findAvailableItemForMonster(t.id, itemSnapshot)))
+            : selectedTimers[0];
+        if (!timer) return null;
+        return { timer, item: findAvailableItemForMonster(timer.id, itemSnapshot) };
     }
 
     function formatTimer(seconds) {
@@ -5487,11 +5498,10 @@
         }
 
         const itemSnapshot = buildTeleportItemSnapshot();
-        const target = pickTarget(
+        const target = pickNearestSlotTarget(
             sortedTimers,
             itemSnapshot,
-            getSlotSelectedMonsterIds(),
-            slotTargetTracker
+            getSlotSelectedMonsterIds()
         );
         renderSlotFor(
             target ? target.timer.id : null,
