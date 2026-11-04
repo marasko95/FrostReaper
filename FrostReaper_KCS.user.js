@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.7
+// @version      0.3.4
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
 // @grant        none
@@ -22,7 +22,7 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.3.7';
+    const ADDON_VERSION = 'FR-KCS-0.3.2';
     const RUNTIME_KEY = '__frostReaperTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-frostReaper-tepekamyki-runtime';
 
@@ -166,7 +166,85 @@
         '63628':  ['Sala Mroźnych Szeptów'],
     };
 
-
+    // Te same skróty, których używa dodatek „Podpisy Kamieni”. Najpierw
+    // odczytujemy gotowy podpis z elementu przedmiotu, a ta tabela jest
+    // zabezpieczeniem na wypadek, gdy drugi dodatek jeszcze się nie załadował.
+    const TELEPORT_SHORT_LABELS = Object.freeze({
+        'Źródło Narumi': 'MAZ',
+        'Krater Uwięzienia': 'TELL',
+        'Las Tropicieli': 'KOTO',
+        'Przeklęta Strażnica': 'SHAE',
+        'Schowek na Łupy': 'ZORG',
+        'Podmokła Dolina': 'WŁAD',
+        'Pieczara Kwiku': 'TYRT',
+        'Skalne Turnie': 'TOL',
+        'Stary Kupiecki Trakt': 'ALIAS',
+        'Mokra Grota': 'AGAR',
+        'Stare Wyrobisko': 'RAZIU',
+        'Lazurytowa Grota': 'KOB',
+        'Kopalnia Kapiącego Miodu': 'MATKA',
+        'Jaskinia Gnollich Szamanów': 'KOZUG',
+        'Kamienna Jaskinia': 'JOTUN',
+        'Głębokie Skałki': 'TOLE',
+        'Krypty Dusz Śniegu': 'LISZ',
+        'Erem Czarnego Słońca': 'GRAB',
+        'Firnowa Grota': 'STOPA',
+        'Świątynia Andarum': 'ZBROJ',
+        'Wylęgarnia Choukkerów': 'CHOUK',
+        'Kopalnia Margorii': 'NADZO',
+        'Margoria': 'MORTH',
+        'Zapomniany Święty Gaj': 'WIDMO',
+        'Grota Samotnych Dusz': 'OHYD',
+        'Kamienna Strażnica': 'GOPA',
+        'Zagrzybiałe Ścieżki': 'GNOM',
+        'Dolina Centaurów': 'CENT',
+        'Las Dziwów': 'KAMB',
+        'Podziemia Zniszczonej Wieży': 'JERT',
+        'Skalne Cmentarzysko': 'Ł.CZ',
+        'Piramida Pustynnego Władcy': 'OZIR',
+        'Opuszczony statek': 'KRAB',
+        'Wulkan Politraki': 'ARC',
+        'Ukryta Grota Morskich Diabłów': 'PIRAT',
+        'Kuźnia Worundriela': 'WOREK',
+        'Cenotaf Berserkerów': 'AMUNO',
+        'Mała Twierdza': 'FODUG',
+        'Lokum Złych Goblinów': 'GONS',
+        'Laboratorium Adariel': 'ADA',
+        'Grota Orczej Hordy': 'BUREK',
+        'Grota Orczych Szamanów': 'SHEBA',
+        'Nawiedzone Kazamaty': 'DWK',
+        'Sala Rady Orków': 'SK',
+        'Sala Królewska': 'GRUBA',
+        'Ogrza Kawerna': 'OGR',
+        'Drzewo Dusz': 'CHRYZ',
+        'Krypty Bezsennych': 'TORKA',
+        'Przysiółek Valmirów': 'BREH',
+        'Szlamowe Kanały': 'MYSZ',
+        'Przerażające Sypialnie': 'SADO',
+        'Tajemnicza Siedziba': 'SEKTA',
+        'Sale Rozdzierania': 'BERGA',
+        'Sala Tysiąca Świec': 'ZUF',
+        'Zalana Grota': 'FURB',
+        'Arachnitopia': 'P5',
+        'Ołtarz Pajęczej Bogini': 'MARLL',
+        'Gnijące Topielisko': 'ARYT',
+        'Jaszczurze Korytarze': 'MOCNY',
+        'Gardziel Podgnitych Mchów': 'FANG',
+        'Źródło Zakorzenionego Ludu': 'DENDR',
+        'Złota Góra': 'TOLY',
+        'Niecka Xiuh Atl': 'CIUT',
+        'Potępione Zamczysko': 'SYBA',
+        'Pustynne Katakumby - Komnata Gwałtownej Śmierci': 'CHOP',
+        'Grobowiec Seta': 'SET',
+        'Urwisko Vapora': 'TER',
+        'Świątynia Hebrehotha - sala ofiary': 'VERA',
+        'Świątynia Hebrehotha - sala czciciela': 'CHAE',
+        'Świątynia Hebrehotha - przedsionek': 'PUST',
+        'Drzewo Życia': 'NYMF',
+        'Sala Lodowej Magii': 'ART',
+        'Sala Mroźnych Strzał': 'FUR',
+        'Sala Mroźnych Szeptów': 'ZOR'
+    });
 
     // ── Stałe i Pamięć lokalna ────────────────────────────────────────────────
     const STORAGE_KEY_POS     = 'e2slot_pos';
