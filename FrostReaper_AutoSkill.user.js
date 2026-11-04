@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.5.8
+// @version      2.5.9
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -65,7 +65,19 @@
         t: "Tropiciel"
     };
 
-    const CONFIG_KEY = "autoskill_pvp_config";
+    // Konfiguracja osobna dla każdej postaci (i konta/świata).
+    // Stary klucz pozostaje nietknięty jako kopia zapasowa.
+    const LEGACY_CONFIG_KEY = "autoskill_pvp_config";
+    const MIGRATION_OWNER_KEY = "autoskill_pvp_config_migration_owner_v259";
+    const heroIdentity = window.Engine?.hero?.d || {};
+    const characterId = String(heroIdentity.id ?? "").trim();
+    const accountId = String(heroIdentity.account ?? "").trim();
+    const worldId = String(window.Engine?.world?.name ?? window.Engine?.world?.d?.name ?? location.hostname).trim();
+    if (!characterId) {
+        console.error("[AutoSkill PvP] Brak ID postaci — nie można bezpiecznie zapisać ustawień.");
+        return;
+    }
+    const CONFIG_KEY = LEGACY_CONFIG_KEY + ":v2:" + encodeURIComponent(worldId) + ":" + encodeURIComponent(accountId || "unknown-account") + ":" + encodeURIComponent(characterId);
     const UI_KEY = "autoskill_pvp_ui";
     const SOCIAL_KEY = "ll:social-relations:state";
 
@@ -73,33 +85,51 @@
     const DETECTION_INTERVAL = 100;
     const PARTY_CHECK_INTERVAL = 500;
 
-    let config;
+    function readStoredConfig(key) {
+        try {
+            const value = JSON.parse(localStorage.getItem(key) || "null");
+            return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+        } catch (error) {
+            console.warn("[AutoSkill PvP] Uszkodzone ustawienia:", key, error);
+            return null;
+        }
+    }
 
-    try {
-        config = JSON.parse(localStorage.getItem(CONFIG_KEY)) || {};
-    } catch (e) {
-        config = {};
+    let config = readStoredConfig(CONFIG_KEY);
+    if (!config) {
+        // Migracja starego, wspólnego zapisu tylko do PIERWSZEJ postaci.
+        // Nie kopiujemy go do kolejnych postaci, bo przypisania mogą być inne.
+        const migrationOwner = localStorage.getItem(MIGRATION_OWNER_KEY);
+        const legacy = readStoredConfig(LEGACY_CONFIG_KEY);
+        if (legacy && !migrationOwner) {
+            config = structuredCloneSafe(legacy);
+            localStorage.setItem(MIGRATION_OWNER_KEY, CONFIG_KEY);
+            console.info("[AutoSkill PvP] Przeniesiono stary zapis na bieżącą postać. Stary zapis zachowany jako kopia.");
+        } else {
+            config = {};
+        }
+    }
+
+    function structuredCloneSafe(value) {
+        return JSON.parse(JSON.stringify(value));
     }
 
     config.enabled = config.enabled !== false;
     config.blockInParty = config.blockInParty !== false;
-    config.mappings = config.mappings || {};
-
-    // Nowa opcja: zestaw używany podczas przebywania w grupie.
-    // 0 oznacza brak wybranego zestawu grupowego.
+    config.mappings = config.mappings && typeof config.mappings === "object" && !Array.isArray(config.mappings) ? config.mappings : {};
     config.groupBuild = Number(config.groupBuild);
-
-    if (
-        !Number.isInteger(config.groupBuild) ||
-        config.groupBuild < 0 ||
-        config.groupBuild > 9
-    ) {
+    if (!Number.isInteger(config.groupBuild) || config.groupBuild < 0 || config.groupBuild > 9) {
         config.groupBuild = 0;
     }
 
     function save() {
-        localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+        try {
+            localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+        } catch (error) {
+            console.error("[AutoSkill PvP] Nie udało się zapisać ustawień postaci:", error);
+        }
     }
+    console.info("[AutoSkill PvP] Konfiguracja postaci:", {worldId, accountId, characterId, key: CONFIG_KEY});
 
     function getProfession(value) {
         if (!value) return null;
@@ -1488,7 +1518,7 @@
 
     save();
 
-    console.log("[AutoSkill PvP] Wersja 2.5.8 FROST REAPER załadowana.");
+    console.log("[AutoSkill PvP] Wersja 2.5.9 FROST REAPER załadowana.");
     console.log("[AutoSkill PvP] Nazwy zestawów:", getBuildNames());
     console.log("[AutoSkill PvP] Stan grupy:", getPartyInfo());
     console.log("[AutoSkill PvP] Build grupowy:", config.groupBuild);
