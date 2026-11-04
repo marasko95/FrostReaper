@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.4.3
+// @version      0.4.4
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -16,6 +16,103 @@
   const KEY = 'fr_manager_settings';
   let settings; try { settings = { settingsOpen:false, kcsSettingsOpen:false, addonsTab:'active', upgradeEnabled:true, ...JSON.parse(localStorage.getItem(KEY)||'{}') }; } catch (_) { settings = {settingsOpen:false,kcsSettingsOpen:false,addonsTab:'active',upgradeEnabled:true}; }
   const save = () => localStorage.setItem(KEY,JSON.stringify(settings));
+
+  // AUTO X: osobny dodatek Managera; domyslnie wylaczony.
+  // Bezpiecznik: atakNearPlayer nie przyjmuje ID celu, wiec przy wielu graczach
+  // w zasiegu nie wolno zgadywac, kogo zaatakuje silnik gry.
+  const AUTO_X_PREFIX = 'fr_manager_auto_x_v1_';
+  const AUTO_X_INTERVAL = 350;
+  const AUTO_X_COOLDOWN = 1500;
+  let autoXLastAttack = 0;
+  let autoXLastTarget = '';
+  function autoXCharacterKey(){
+    const hero = window.Engine?.hero?.d;
+    if (!hero?.id) return null;
+    const world = location.hostname.split('.')[0];
+    return AUTO_X_PREFIX + encodeURIComponent([world, hero.account ?? 'unknown', hero.id].join(':'));
+  }
+  function autoXEnabled(){
+    const key = autoXCharacterKey();
+    return Boolean(key && localStorage.getItem(key) === 'true');
+  }
+  function setAutoXEnabled(value){
+    const key = autoXCharacterKey();
+    if (!key) return false;
+    localStorage.setItem(key, String(Boolean(value)));
+    autoXLastAttack = 0;
+    autoXLastTarget = '';
+    return true;
+  }
+  function autoXRelationState(){
+    try {
+      const raw = JSON.parse(localStorage.getItem('ll:social-relations:state') || 'null');
+      return raw?.state || raw || null;
+    } catch (_) { return null; }
+  }
+  function autoXIsProtected(player, hero, social){
+    const d = player?.d || player;
+    const id = String(d?.id ?? '');
+    const ownClan = String(hero.clan?.id ?? (typeof hero.clan === 'number' ? hero.clan : '') ?? '');
+    const clan = String(d?.clan?.id ?? (typeof d?.clan === 'number' ? d.clan : '') ?? '');
+    if (!id || id === String(hero.id)) return true;
+    if (ownClan && clan && ownClan === clan) return true;
+    // Brak wiarygodnych danych o relacjach: nie ryzykuj ataku na sojusznika.
+    if (!social) return true;
+    const account = String(hero.account ?? '');
+    const world = location.hostname.split('.')[0];
+    let character = null;
+    for (const [key, data] of Object.entries(social.characters || {})) {
+      try {
+        const parts = JSON.parse(key);
+        if (Array.isArray(parts) && String(parts[0]) === world && String(parts[1]) === account && String(parts[2]) === String(hero.id)) {
+          character = data; break;
+        }
+      } catch (_) {}
+    }
+    if (!character) return true;
+    const contains = (collection, target) => Array.isArray(collection)
+      ? collection.some(x => String(x) === target)
+      : Boolean(collection && collection[target] === true);
+    if (contains(character.enemies, id)) return false;
+    if (contains(character.friends, id)) return true;
+    if (clan && ownClan) {
+      const relations = social.clans?.[JSON.stringify([world, ownClan])];
+      if (!relations) return true;
+      if (relations[clan] === 'ally') return true;
+    }
+    // Pozostali gracze, w tym bez klanu, sa potencjalnymi celami.
+    return false;
+  }
+  function autoXTick(){
+    try {
+      if (!autoXEnabled()) return;
+      const E = window.Engine;
+      const hero = E?.hero?.d;
+      if (!hero || E?.battle?.show || !E?.others?.getDrawableList || typeof E?.hero?.atackNearPlayer !== 'function') return;
+      const mapPvP = Number(E?.map?.d?.pvp);
+      if (!(mapPvP === 2 || (mapPvP === 1 && Number(hero.pvp) === 1))) return;
+      const x = Number(hero.x), y = Number(hero.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const nearby = (E.others.getDrawableList() || []).filter(p => {
+        if (!p?.isPlayer || !p.d || String(p.d.id) === String(hero.id)) return false;
+        const px = Number(p.d.x), py = Number(p.d.y);
+        return Number.isFinite(px) && Number.isFinite(py) && Math.abs(px-x)+Math.abs(py-y) <= 2;
+      });
+      if (nearby.length !== 1) return; // native X moze wybrac inny cel
+      const target = nearby[0];
+      if (autoXIsProtected(target, hero, autoXRelationState())) return;
+      const targetId = String(target.d.id);
+      const now = Date.now();
+      if (now - autoXLastAttack < AUTO_X_COOLDOWN) return;
+      autoXLastAttack = now;
+      autoXLastTarget = targetId;
+      E.hero.atackNearPlayer();
+    } catch (error) {
+      console.warn('[Frost Reaper AUTO X] Blad skanowania:', error);
+    }
+  }
+  setInterval(autoXTick, AUTO_X_INTERVAL);
+
   // Podpisy kamieni: niezalezne od widocznosci KCS, domyslnie wylaczone.
   const TELEPORT_SHORT_LABELS = Object.freeze({
         'Źródło Narumi': 'MAZ',
@@ -304,6 +401,7 @@
         ${moduleRow('th','TitanHelper (TH)','Widoczność okna; działanie skryptu pozostaje aktywne')}
         ${moduleRow('as','Auto Skill (AS)','Widoczność okna; automat pozostaje aktywny')}
         <div class="fr-mgr-row"><div><div class="fr-mgr-title" style="display:flex;align-items:center;gap:7px">Szybki KCS <button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" title="Pełne ustawienia KCS: Discord Lootloga, timery, hotkey, AUTO, kamienie" aria-label="Ustawienia Szybkiego KCS" ${installed.kcs?'':'disabled'} style="margin-left:0;padding:3px 5px;line-height:1">${gearSVG}</button></div><div class="fr-mgr-muted">Hotkey, AUTO i blokada pod zębatką</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">AUTO X • 2 pola</div><div class="fr-mgr-muted">Atakuj pojedynczego wroga w zasiegu • pomijaj sojusznikow</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="auto-x" ${autoXEnabled()?'checked':''} ${autoXCharacterKey()?'':'disabled'}></div>
         <div class="fr-mgr-row"><div><div class="fr-mgr-title">Podpisy kamieni</div><div class="fr-mgr-muted">Skróty E2 w plecaku • bez podpisów miast</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="stone-labels" ${settings.stoneLabelsEnabled?'checked':''}></div>
         <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">${upgradeEnabled()?'Moduł uruchomiony':'Moduł wyłączony • bez automatu i nasłuchów'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="upgrade-enabled" ${upgradeEnabled()?'checked':''}></div>
         ${upgradeEnabled()?`<div class="fr-mgr-row"><div class="fr-mgr-title">Panel Ulepszarki</div><button type="button" class="fr-mgr-reset" data-fr-action="upgrade-toggle">${settings.upgradeOpen===false?'Rozwiń':'Zwiń'}</button></div><div id="fr-upgrade-slot" class="fr-upgrade-slot"></div>`:''}
@@ -499,6 +597,7 @@
       body.dataset.frManagerBound='1';
       body.addEventListener('change',ev=>{
         const module=ev.target?.dataset?.frModule;
+        if(module==='auto-x'){setAutoXEnabled(ev.target.checked);draw();return;}
         if(module==='stone-labels'){settings.stoneLabelsEnabled=Boolean(ev.target.checked);save();syncStoneLabels();return;}
         if(module==='upgrade-enabled'){setUpgradeEnabled(ev.target.checked);return;}
         if(module==='kcs'){
