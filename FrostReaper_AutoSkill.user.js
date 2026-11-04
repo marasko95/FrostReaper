@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.5.7
+// @version      2.5.8
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -891,6 +891,8 @@
     let pvpLastSeenAt = 0;
     let pvpTargetKey = null;
     let pvpTargetStableSince = 0;
+    let battleTargetLockUntil = 0;
+    const BATTLE_TARGET_LOCK_MS = 2500;
     const PVP_TARGET_STABILITY_MS = 350;
     const PVP_RESTORE_DELAY_MS = 1400;
 
@@ -1138,7 +1140,7 @@
             const Engine = window.Engine;
 
             if (!Engine?.hero?.d) return;
-            if (Engine.battle?.show) {
+            if (Engine.battle?.show || Date.now() < battleTargetLockUntil) {
                 if (pvpBuildActive) pvpLastSeenAt = Date.now();
                 return;
             }
@@ -1192,6 +1194,14 @@
             if (!candidates.length) {
                 lastNearbyPlayer = null;
                 pvpTargetKey = null;
+                return;
+            }
+            // Nie zgaduj profesji: gdy kilku wrogów jest w zasięgu,
+            // nie wiadomo, który z nich rozpocznie walkę.
+            if (candidates.length !== 1) {
+                lastNearbyPlayer = null;
+                pvpTargetKey = null;
+                setStatus('Kilku przeciwników w pobliżu — czekam na pewny cel.');
                 return;
             }
             const target = candidates[0];
@@ -1390,7 +1400,10 @@
                             return true;
                         });
 
-                    if (enemies.length) {
+                    // Nie wybieraj losowego uczestnika walki grupowej.
+                    // Automatyczny dobór profesji tylko przy jednym wrogu.
+                    if (enemies.length === 1) {
+                        battleTargetLockUntil = Date.now() + BATTLE_TARGET_LOCK_MS;
                         const [enemyId, enemy] = enemies[0];
 
                         const other =
@@ -1421,6 +1434,9 @@
                             nick,
                             playerData
                         );
+                    } else if (enemies.length > 1) {
+                        battleTargetLockUntil = Date.now() + BATTLE_TARGET_LOCK_MS;
+                        setStatus('Walka z wieloma przeciwnikami — nie zgaduję zestawu.');
                     }
                 }
             } catch (e) {
@@ -1472,7 +1488,7 @@
 
     save();
 
-    console.log("[AutoSkill PvP] Wersja 2.5.7 FROST REAPER załadowana.");
+    console.log("[AutoSkill PvP] Wersja 2.5.8 FROST REAPER załadowana.");
     console.log("[AutoSkill PvP] Nazwy zestawów:", getBuildNames());
     console.log("[AutoSkill PvP] Stan grupy:", getPartyInfo());
     console.log("[AutoSkill PvP] Build grupowy:", config.groupBuild);
