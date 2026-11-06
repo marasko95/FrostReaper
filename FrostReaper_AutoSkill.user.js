@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.5.9
+// @version      2.6.1
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -81,7 +81,7 @@
     const UI_KEY = "autoskill_pvp_ui";
     const SOCIAL_KEY = "ll:social-relations:state";
 
-    const DETECTION_RADIUS = 2;
+    const DETECTION_RADIUS = 4;
     const DETECTION_INTERVAL = 100;
     const PARTY_CHECK_INTERVAL = 500;
 
@@ -866,6 +866,15 @@
                 return false;
             }
 
+            // Zestaw grupowy jest zarezerwowany WYŁĄCZNIE dla rzeczywistej grupy.
+            // Dotyczy też przywracania po PvP i po opuszczeniu grupy.
+            const reservedGroupId = Number(config.groupBuild);
+            if (reservedGroupId >= 1 && id === reservedGroupId && !getPartyInfo().inParty) {
+                console.warn('[AutoSkill PvP] Zablokowano zestaw grupowy poza grupą:', {id, reason});
+                setStatus('Zablokowano zestaw grupowy poza grupą: ' + getBuildLabel(id));
+                return false;
+            }
+
             const B = window.Engine?.buildsManager;
 
             if (!B) {
@@ -932,6 +941,12 @@
         if (Date.now() - pvpLastSeenAt < PVP_RESTORE_DELAY_MS) return;
         if (!config.enabled) return;
         const target = prePvpBuild;
+        if (Number(config.groupBuild) === target && target > 0) {
+            // Nie odtwarzaj zarezerwowanego zestawu grupowego poza grupą.
+            pvpBuildActive = false;
+            prePvpBuild = null;
+            return;
+        }
         if (currentBuildId() === target) {
             pvpBuildActive = false;
             prePvpBuild = null;
@@ -967,6 +982,11 @@
                 }
                 if (pendingRestoreBuild != null) {
                     const restoreId = pendingRestoreBuild;
+                    if (Number(config.groupBuild) === restoreId && restoreId > 0) {
+                        pendingRestoreBuild = null;
+                        setStatus('Pominięto przywrócenie zestawu grupowego poza grupą.');
+                        return false;
+                    }
                     if (currentBuildId() === restoreId) {
                         pendingRestoreBuild = null;
                         setStatus('Przywrócono zestaw sprzed grupy: ' + getBuildLabel(restoreId));
@@ -1059,6 +1079,11 @@
                 setStatus(
                     "Zmiana zablokowana — grupa (" + party.count + "/10)."
                 );
+                return false;
+            }
+
+            if (Number(config.groupBuild) === id && id > 0) {
+                setStatus('Zestaw PvP wskazuje build grupowy — wybierz inny zestaw dla tej profesji.');
                 return false;
             }
 
@@ -1212,15 +1237,11 @@
                 .filter(Boolean)
                 .sort((a, b) => a.distance - b.distance);
 
-            // Liczymy przeciwników na CAŁEJ mapie, nie tylko w promieniu 2 pól.
+            // Nie przełączaj umiejętności od samego widoku wroga na drugim końcu mapy.
+            // Po E2/PvP często zostają widoczne postacie, które nie są celem walki.
             const mapEnemies = onMap.filter(p => !isFriendlyPlayer(p.playerData));
-            const soloEnemy = mapEnemies.length === 1;
-
-            // Jeden wróg: zmiana natychmiast, niezależnie od odległości.
-            // Kilku wrogów: dotychczasowa bezpieczniejsza reguła bliskości.
-            const candidates = soloEnemy
-                ? mapEnemies
-                : mapEnemies.filter(p => p.distance <= DETECTION_RADIUS);
+            const candidates = mapEnemies.filter(p => p.distance <= DETECTION_RADIUS);
+            const soloEnemy = candidates.length === 1;
             if (!candidates.length) {
                 lastNearbyPlayer = null;
                 pvpTargetKey = null;
@@ -1241,9 +1262,9 @@
                 pvpTargetKey = targetKey;
                 pvpTargetStableSince = Date.now();
                 lastNearbyPlayer = null;
-                if (!soloEnemy) return;
+                return;
             }
-            if (!soloEnemy && Date.now() - pvpTargetStableSince < PVP_TARGET_STABILITY_MS) return;
+            if (Date.now() - pvpTargetStableSince < PVP_TARGET_STABILITY_MS) return;
             pvpLastSeenAt = Date.now();
 
             // Ponów, jeśli gra nie zastosowała poprzedniego zestawu.
@@ -1255,7 +1276,7 @@
             console.log("[AutoSkill PvP] Cel PvP:", { ...target, soloEnemy, enemiesOnMap: mapEnemies.length });
 
             setStatus(
-                (soloEnemy ? "Jedyny wróg na mapie: " : "W pobliżu: ") + target.nick +
+                "W pobliżu: " + target.nick +
                 " (" + target.distance + " pól) — " +
                 target.profession
             );
