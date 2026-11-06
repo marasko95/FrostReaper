@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.4.9
+// @version      0.5.0
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -138,43 +138,47 @@
     head.addEventListener('pointerup',finish);
     head.addEventListener('pointercancel',finish);
   }
-  // Panel AUTO X/F przyklejony pod ekwipunkiem. Gdy ekwipunek nie jest
-  // dostepny w DOM, pozostaje dotychczasowe reczne ustawienie panelu.
-  function positionAutoPanelUnderInventory(){
+  // Pozycja zaznaczona przez gracza: nad pierwszym rzedem kamieni,
+  // po lewej stronie siatki ekwipunku (NIE pod calym ekwipunkiem).
+  function positionAutoPanelAboveInventory(){
     if (!autoPanel || !autoPanel.isConnected || autoPanel.style.display === 'none') return;
     const selectors = [
+      '.inventory-grid',
+      '[data-window-name="inventory"] .inventory-grid',
+      '#inventory .inventory-grid',
+      '.inventory-window .inventory-grid',
       '[data-window-name="inventory"]',
-      '[data-window-name="equipment"]',
-      '#inventory', '#equipment',
-      '.inventory-window', '.equipment-window',
-      '.inventory-grid'
+      '#inventory', '.inventory-window'
     ];
-    const candidates = [];
+    let anchor = null;
     for (const selector of selectors) {
-      for (const node of document.querySelectorAll(selector)) {
-        const panel = node.closest('.c-window, .window, [data-window-name="inventory"], [data-window-name="equipment"]') || node;
-        if (panel === autoPanel || autoPanel.contains(panel)) continue;
-        const r = panel.getBoundingClientRect();
-        if (r.width < 100 || r.height < 70 || r.width > innerWidth * .75) continue;
-        if (r.right <= 0 || r.left >= innerWidth || r.bottom <= 0) continue;
-        if (getComputedStyle(panel).display === 'none' || getComputedStyle(panel).visibility === 'hidden') continue;
-        candidates.push({r, panel});
+      const candidates = [...document.querySelectorAll(selector)].filter(node => {
+        if (autoPanel.contains(node)) return false;
+        const r = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return r.width >= 95 && r.width <= 480 && r.height >= 60 &&
+          r.left >= 0 && r.right <= innerWidth + 10 &&
+          r.top >= 0 && r.top < innerHeight &&
+          style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      if (candidates.length) {
+        candidates.sort((a,b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
+        anchor = candidates[0];
+        break;
       }
-      if (candidates.length) break;
     }
-    if (!candidates.length) return;
-    // Najbardziej prawdopodobny ekwipunek: widoczne okno po prawej.
-    candidates.sort((a,b) => b.r.left - a.r.left);
-    const r = candidates[0].r;
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
     const width = autoPanel.offsetWidth || 126;
     const height = autoPanel.offsetHeight || 75;
-    const left = Math.max(0, Math.min(Math.round(r.right - width), innerWidth - width));
-    const top = Math.max(0, Math.min(Math.round(r.bottom + 6), innerHeight - height));
-    autoPanel.style.setProperty('left',left+'px');
-    autoPanel.style.setProperty('top',top+'px');
-    autoPanel.style.setProperty('right','auto');
+    // Cel: lewy skraj kamieni, panel lekko nachodzi na ich gorna krawedz.
+    const left = Math.max(0, Math.min(Math.round(r.left + 4), innerWidth - width));
+    const top = Math.max(0, Math.min(Math.round(r.top - 16), innerHeight - height));
+    autoPanel.style.setProperty('left', left + 'px');
+    autoPanel.style.setProperty('top', top + 'px');
+    autoPanel.style.setProperty('right', 'auto');
   }
-  window.addEventListener('resize',positionAutoPanelUnderInventory);
+  window.addEventListener('resize', positionAutoPanelAboveInventory);
   function syncAutoPanel(){
     const visible = autoPanelVisible();
     if (!visible) { if(autoPanel) autoPanel.style.display='none'; return; }
@@ -192,7 +196,7 @@
       });
     }
     autoPanel.style.display = 'block';
-    positionAutoPanelUnderInventory();
+    positionAutoPanelAboveInventory();
     const x = autoPanel.querySelector('[data-fr-auto="x"]');
     const f = autoPanel.querySelector('[data-fr-auto="f"]');
     if(x) x.checked = autoXEnabled();
