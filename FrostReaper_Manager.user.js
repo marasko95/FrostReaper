@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.4.6
+// @version      0.4.8
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -25,10 +25,10 @@
   const AUTO_X_INTERVAL = 100;
   const AUTO_X_COOLDOWN = 900;
   const AUTO_F_INTERVAL = 180;
-  const AUTO_F_COOLDOWN = 400;
   let autoXLastAttack = 0;
   let autoXLastTarget = '';
-  let autoFLastPress = 0;
+  let autoFHandledBattle = false;
+  let autoFCharacter = null;
   function autoXCharacterKey(){
     const hero = window.Engine?.hero?.d;
     if (!hero?.id) return null;
@@ -63,7 +63,6 @@
     const key = autoOptionKey(AUTO_F_PREFIX);
     if (!key) return false;
     localStorage.setItem(key, String(Boolean(value)));
-    autoFLastPress = 0;
     return true;
   }
   function setAutoPanelVisible(value){
@@ -79,27 +78,75 @@
     return battle?.show === true || battle?.show === 1 || battle?.show === 'true';
   }
   function autoFTick(){
-    if (!autoFEnabled() || !battleActive()) return;
+    // One F press per battle. Reset only when the battle ends or character changes.
+    const character = autoXCharacterKey();
+    if (character !== autoFCharacter) {
+      autoFCharacter = character;
+      autoFHandledBattle = false;
+    }
+    if (!battleActive()) {
+      autoFHandledBattle = false;
+      return;
+    }
+    if (autoFHandledBattle || !autoFEnabled()) return;
     const active = document.activeElement;
     if (active?.matches?.('input,textarea,select,[contenteditable="true"]') || active?.closest?.('[contenteditable="true"]')) return;
-    const now = Date.now();
-    if (now - autoFLastPress < AUTO_F_COOLDOWN) return;
-    autoFLastPress = now;
-    // Emulacja klawisza F - gra musi obslugiwac syntetyczne zdarzenia.
+    // Latch before dispatch: never toggle AUTO back off in the same battle.
+    autoFHandledBattle = true;
     for (const type of ['keydown','keyup']) {
       document.dispatchEvent(new KeyboardEvent(type, {key:'f',code:'KeyF',keyCode:70,which:70,bubbles:true,cancelable:true}));
     }
   }
   setInterval(autoFTick, AUTO_F_INTERVAL);
   let autoPanel = null;
+  const AUTO_PANEL_POSITION_KEY = 'fr_manager_auto_xf_position_v1';
+  function enableAutoPanelDrag(panel){
+    if(panel.dataset.frDragReady) return;
+    panel.dataset.frDragReady='1';
+    const head=panel.querySelector('.fr-auto-xf-head');
+    let drag=null;
+    const clamp=(n,min,max)=>Math.max(min,Math.min(n,max));
+    function place(left,top){
+      const x=clamp(left,0,Math.max(0,innerWidth-panel.offsetWidth));
+      const y=clamp(top,0,Math.max(0,innerHeight-panel.offsetHeight));
+      panel.style.setProperty('left',x+'px');
+      panel.style.setProperty('top',y+'px');
+      panel.style.setProperty('right','auto');
+      return {left:x,top:y};
+    }
+    try {
+      const saved=JSON.parse(localStorage.getItem(AUTO_PANEL_POSITION_KEY)||'null');
+      if(Number.isFinite(saved?.left)&&Number.isFinite(saved?.top)) place(saved.left,saved.top);
+    } catch(_) {}
+    head.addEventListener('pointerdown',e=>{
+      if(e.button!==0)return;
+      const r=panel.getBoundingClientRect();
+      drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:r.left,top:r.top};
+      head.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    head.addEventListener('pointermove',e=>{
+      if(!drag||e.pointerId!==drag.id)return;
+      place(drag.left+e.clientX-drag.x,drag.top+e.clientY-drag.y);
+    });
+    function finish(e){
+      if(!drag||e.pointerId!==drag.id)return;
+      drag=null;
+      const r=panel.getBoundingClientRect();
+      try{localStorage.setItem(AUTO_PANEL_POSITION_KEY,JSON.stringify({left:Math.round(r.left),top:Math.round(r.top)}));}catch(_){}
+    }
+    head.addEventListener('pointerup',finish);
+    head.addEventListener('pointercancel',finish);
+  }
   function syncAutoPanel(){
     const visible = autoPanelVisible();
     if (!visible) { if(autoPanel) autoPanel.style.display='none'; return; }
     if (!autoPanel || !autoPanel.isConnected) {
       autoPanel = document.createElement('div');
       autoPanel.id = 'fr-auto-xf-panel';
-      autoPanel.innerHTML = '<div class="fr-auto-xf-head">⚔ AUTO X / F <span>2 pola</span></div><label><input type="checkbox" data-fr-auto="x"> AUTO X</label><label><input type="checkbox" data-fr-auto="f"> AUTO F <small>(tylko walka)</small></label>';
+      autoPanel.innerHTML = '<div class="fr-auto-xf-head">⚔ AUTO X / F</div><label><span>AUTO X</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="x"></label><label><span>AUTO F</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="f"></label>';
       document.body.appendChild(autoPanel);
+      enableAutoPanelDrag(autoPanel);
       autoPanel.addEventListener('change', ev => {
         const option = ev.target?.dataset?.frAuto;
         if (option === 'x') setAutoXEnabled(ev.target.checked);
@@ -187,7 +234,16 @@
   setInterval(autoXTick, AUTO_X_INTERVAL);
 
   const autoPanelCss = document.createElement('style');
-  autoPanelCss.textContent = `#fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:9999;min-width:155px;background:#24201b;border:1px solid #b38a4b;border-radius:6px;box-shadow:0 3px 12px #000a;color:#e8d7b2;font:12px Arial,sans-serif;padding:8px}#fr-auto-xf-panel .fr-auto-xf-head{font-weight:bold;color:#f2ce80;border-bottom:1px solid #6b5133;padding-bottom:6px;margin-bottom:6px}#fr-auto-xf-panel .fr-auto-xf-head span{float:right;color:#a99e8a;font-size:10px}#fr-auto-xf-panel label{display:flex;align-items:center;gap:7px;padding:5px 0;cursor:pointer}#fr-auto-xf-panel small{font-size:10px;color:#a99e8a}`;
+  autoPanelCss.textContent = `
+    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:9999;width:126px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:6px;box-shadow:0 2px 9px #0009;color:#e8d7b2;font:11px/1.2 Arial,sans-serif;padding:5px 7px 4px}
+    #fr-auto-xf-panel .fr-auto-xf-head{font-weight:700;color:#f2ce80;border-bottom:1px solid #6b5133;padding:3px 1px 6px;margin-bottom:3px;cursor:grab;touch-action:none;user-select:none;font-size:11px;white-space:nowrap}
+    #fr-auto-xf-panel .fr-auto-xf-head:active{cursor:grabbing}
+    #fr-auto-xf-panel label{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:5px 1px;cursor:pointer;font-weight:700}
+    #fr-auto-xf-panel .fr-auto-xf-toggle{appearance:none;-webkit-appearance:none;width:32px;height:17px;flex:none;margin:0;border-radius:10px;background:#44392b;border:1px solid #9b7c48;cursor:pointer;position:relative;box-sizing:border-box}
+    #fr-auto-xf-panel .fr-auto-xf-toggle:before{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#b3a28a;transition:left .15s}
+    #fr-auto-xf-panel .fr-auto-xf-toggle:checked{background:#66502c}
+    #fr-auto-xf-panel .fr-auto-xf-toggle:checked:before{left:17px;background:#efcf84}
+  `;
   (document.head || document.documentElement).appendChild(autoPanelCss);
 
   // Podpisy kamieni: niezalezne od widocznosci KCS, domyslnie wylaczone.
