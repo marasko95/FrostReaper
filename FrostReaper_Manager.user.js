@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.4.8
+// @version      0.4.9
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -138,6 +138,43 @@
     head.addEventListener('pointerup',finish);
     head.addEventListener('pointercancel',finish);
   }
+  // Panel AUTO X/F przyklejony pod ekwipunkiem. Gdy ekwipunek nie jest
+  // dostepny w DOM, pozostaje dotychczasowe reczne ustawienie panelu.
+  function positionAutoPanelUnderInventory(){
+    if (!autoPanel || !autoPanel.isConnected || autoPanel.style.display === 'none') return;
+    const selectors = [
+      '[data-window-name="inventory"]',
+      '[data-window-name="equipment"]',
+      '#inventory', '#equipment',
+      '.inventory-window', '.equipment-window',
+      '.inventory-grid'
+    ];
+    const candidates = [];
+    for (const selector of selectors) {
+      for (const node of document.querySelectorAll(selector)) {
+        const panel = node.closest('.c-window, .window, [data-window-name="inventory"], [data-window-name="equipment"]') || node;
+        if (panel === autoPanel || autoPanel.contains(panel)) continue;
+        const r = panel.getBoundingClientRect();
+        if (r.width < 100 || r.height < 70 || r.width > innerWidth * .75) continue;
+        if (r.right <= 0 || r.left >= innerWidth || r.bottom <= 0) continue;
+        if (getComputedStyle(panel).display === 'none' || getComputedStyle(panel).visibility === 'hidden') continue;
+        candidates.push({r, panel});
+      }
+      if (candidates.length) break;
+    }
+    if (!candidates.length) return;
+    // Najbardziej prawdopodobny ekwipunek: widoczne okno po prawej.
+    candidates.sort((a,b) => b.r.left - a.r.left);
+    const r = candidates[0].r;
+    const width = autoPanel.offsetWidth || 126;
+    const height = autoPanel.offsetHeight || 75;
+    const left = Math.max(0, Math.min(Math.round(r.right - width), innerWidth - width));
+    const top = Math.max(0, Math.min(Math.round(r.bottom + 6), innerHeight - height));
+    autoPanel.style.setProperty('left',left+'px');
+    autoPanel.style.setProperty('top',top+'px');
+    autoPanel.style.setProperty('right','auto');
+  }
+  window.addEventListener('resize',positionAutoPanelUnderInventory);
   function syncAutoPanel(){
     const visible = autoPanelVisible();
     if (!visible) { if(autoPanel) autoPanel.style.display='none'; return; }
@@ -155,12 +192,13 @@
       });
     }
     autoPanel.style.display = 'block';
+    positionAutoPanelUnderInventory();
     const x = autoPanel.querySelector('[data-fr-auto="x"]');
     const f = autoPanel.querySelector('[data-fr-auto="f"]');
     if(x) x.checked = autoXEnabled();
     if(f) f.checked = autoFEnabled();
   }
-  setInterval(syncAutoPanel, 1200);
+  setInterval(syncAutoPanel, 600);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',syncAutoPanel,{once:true});
   else syncAutoPanel();
   function autoXRelationState(){
