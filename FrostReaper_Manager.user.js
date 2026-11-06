@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.5.0
+// @version      0.5.1
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -103,7 +103,7 @@
   function enableAutoPanelDrag(panel){
     if(panel.dataset.frDragReady) return;
     panel.dataset.frDragReady='1';
-    const head=panel.querySelector('.fr-auto-xf-head');
+    const head=panel;
     let drag=null;
     const clamp=(n,min,max)=>Math.max(min,Math.min(n,max));
     function place(left,top){
@@ -119,7 +119,7 @@
       if(Number.isFinite(saved?.left)&&Number.isFinite(saved?.top)) place(saved.left,saved.top);
     } catch(_) {}
     head.addEventListener('pointerdown',e=>{
-      if(e.button!==0)return;
+      if(e.button!==0 || e.target.closest('input,label'))return;
       const r=panel.getBoundingClientRect();
       drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:r.left,top:r.top};
       head.setPointerCapture(e.pointerId);
@@ -138,8 +138,7 @@
     head.addEventListener('pointerup',finish);
     head.addEventListener('pointercancel',finish);
   }
-  // Pozycja zaznaczona przez gracza: nad pierwszym rzedem kamieni,
-  // po lewej stronie siatki ekwipunku (NIE pod calym ekwipunkiem).
+  // Pozycja na wysokosci toreb, w waskim pasie miedzy statystykami a kamieniami.
   function positionAutoPanelAboveInventory(){
     if (!autoPanel || !autoPanel.isConnected || autoPanel.style.display === 'none') return;
     const selectors = [
@@ -169,11 +168,11 @@
     }
     if (!anchor) return;
     const r = anchor.getBoundingClientRect();
-    const width = autoPanel.offsetWidth || 126;
-    const height = autoPanel.offsetHeight || 75;
-    // Cel: lewy skraj kamieni, panel lekko nachodzi na ich gorna krawedz.
-    const left = Math.max(0, Math.min(Math.round(r.left + 4), innerWidth - width));
-    const top = Math.max(0, Math.min(Math.round(r.top - 16), innerHeight - height));
+    const width = autoPanel.offsetWidth || 100;
+    const height = autoPanel.offsetHeight || 43;
+    // Cel: waski pasek przy ikonach toreb, a nie na kamieniach.
+    const left = Math.max(0, Math.min(Math.round(r.left + 1), innerWidth - width));
+    const top = Math.max(0, Math.min(Math.round(r.top - height - 3), innerHeight - height));
     autoPanel.style.setProperty('left', left + 'px');
     autoPanel.style.setProperty('top', top + 'px');
     autoPanel.style.setProperty('right', 'auto');
@@ -185,7 +184,7 @@
     if (!autoPanel || !autoPanel.isConnected) {
       autoPanel = document.createElement('div');
       autoPanel.id = 'fr-auto-xf-panel';
-      autoPanel.innerHTML = '<div class="fr-auto-xf-head">⚔ AUTO X / F</div><label><span>AUTO X</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="x"></label><label><span>AUTO F</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="f"></label>';
+      autoPanel.innerHTML = '<label><span>AUTO X</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="x"></label><label><span>AUTO F</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="f"></label>';
       document.body.appendChild(autoPanel);
       enableAutoPanelDrag(autoPanel);
       autoPanel.addEventListener('change', ev => {
@@ -277,14 +276,13 @@
 
   const autoPanelCss = document.createElement('style');
   autoPanelCss.textContent = `
-    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:9999;width:126px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:6px;box-shadow:0 2px 9px #0009;color:#e8d7b2;font:11px/1.2 Arial,sans-serif;padding:5px 7px 4px}
-    #fr-auto-xf-panel .fr-auto-xf-head{font-weight:700;color:#f2ce80;border-bottom:1px solid #6b5133;padding:3px 1px 6px;margin-bottom:3px;cursor:grab;touch-action:none;user-select:none;font-size:11px;white-space:nowrap}
-    #fr-auto-xf-panel .fr-auto-xf-head:active{cursor:grabbing}
-    #fr-auto-xf-panel label{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:5px 1px;cursor:pointer;font-weight:700}
-    #fr-auto-xf-panel .fr-auto-xf-toggle{appearance:none;-webkit-appearance:none;width:32px;height:17px;flex:none;margin:0;border-radius:10px;background:#44392b;border:1px solid #9b7c48;cursor:pointer;position:relative;box-sizing:border-box}
-    #fr-auto-xf-panel .fr-auto-xf-toggle:before{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#b3a28a;transition:left .15s}
+    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:9999;width:101px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:5px;box-shadow:0 2px 6px #0009;color:#e8d7b2;font:700 9px/1 Arial,sans-serif;padding:3px 5px;touch-action:none;user-select:none;cursor:grab}
+    #fr-auto-xf-panel:active{cursor:grabbing}
+    #fr-auto-xf-panel label{display:flex;align-items:center;justify-content:space-between;gap:3px;padding:2px 0;cursor:default;white-space:nowrap}
+    #fr-auto-xf-panel .fr-auto-xf-toggle{appearance:none;-webkit-appearance:none;width:26px;height:14px;flex:none;margin:0;border-radius:9px;background:#44392b;border:1px solid #9b7c48;cursor:pointer;position:relative;box-sizing:border-box}
+    #fr-auto-xf-panel .fr-auto-xf-toggle:before{content:'';position:absolute;top:1px;left:1px;width:10px;height:10px;border-radius:50%;background:#b3a28a;transition:left .15s}
     #fr-auto-xf-panel .fr-auto-xf-toggle:checked{background:#66502c}
-    #fr-auto-xf-panel .fr-auto-xf-toggle:checked:before{left:17px;background:#efcf84}
+    #fr-auto-xf-panel .fr-auto-xf-toggle:checked:before{left:13px;background:#efcf84}
   `;
   (document.head || document.documentElement).appendChild(autoPanelCss);
 
