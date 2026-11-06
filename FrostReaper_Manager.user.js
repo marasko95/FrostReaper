@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.4.4
+// @version      0.4.5
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -21,8 +21,8 @@
   // Bezpiecznik: atakNearPlayer nie przyjmuje ID celu, wiec przy wielu graczach
   // w zasiegu nie wolno zgadywac, kogo zaatakuje silnik gry.
   const AUTO_X_PREFIX = 'fr_manager_auto_x_v1_';
-  const AUTO_X_INTERVAL = 350;
-  const AUTO_X_COOLDOWN = 1500;
+  const AUTO_X_INTERVAL = 100;
+  const AUTO_X_COOLDOWN = 900;
   let autoXLastAttack = 0;
   let autoXLastTarget = '';
   function autoXCharacterKey(){
