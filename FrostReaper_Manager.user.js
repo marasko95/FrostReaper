@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.4.5
+// @version      0.4.6
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -17,22 +17,38 @@
   let settings; try { settings = { settingsOpen:false, kcsSettingsOpen:false, addonsTab:'active', upgradeEnabled:true, ...JSON.parse(localStorage.getItem(KEY)||'{}') }; } catch (_) { settings = {settingsOpen:false,kcsSettingsOpen:false,addonsTab:'active',upgradeEnabled:true}; }
   const save = () => localStorage.setItem(KEY,JSON.stringify(settings));
 
-  // AUTO X: osobny dodatek Managera; domyslnie wylaczony.
-  // Bezpiecznik: atakNearPlayer nie przyjmuje ID celu, wiec przy wielu graczach
-  // w zasiegu nie wolno zgadywac, kogo zaatakuje silnik gry.
-  const AUTO_X_PREFIX = 'fr_manager_auto_x_v1_';
+  // AUTO X / AUTO F: dwa niezalezne przelaczniki w malym panelu.
+  // Manager steruje jedynie widocznoscia panelu.
+  const AUTO_X_PREFIX = 'fr_manager_auto_x_v1_'; // zachowaj stan X z v0.4.5
+  const AUTO_F_PREFIX = 'fr_manager_auto_f_v1_';
+  const AUTO_PANEL_PREFIX = 'fr_manager_auto_panel_visible_v1_';
   const AUTO_X_INTERVAL = 100;
   const AUTO_X_COOLDOWN = 900;
+  const AUTO_F_INTERVAL = 180;
+  const AUTO_F_COOLDOWN = 400;
   let autoXLastAttack = 0;
   let autoXLastTarget = '';
+  let autoFLastPress = 0;
   function autoXCharacterKey(){
     const hero = window.Engine?.hero?.d;
     if (!hero?.id) return null;
     const world = location.hostname.split('.')[0];
     return AUTO_X_PREFIX + encodeURIComponent([world, hero.account ?? 'unknown', hero.id].join(':'));
   }
+  function autoOptionKey(prefix){
+    const key = autoXCharacterKey();
+    return key ? prefix + key.slice(AUTO_X_PREFIX.length) : null;
+  }
   function autoXEnabled(){
     const key = autoXCharacterKey();
+    return Boolean(key && localStorage.getItem(key) === 'true');
+  }
+  function autoFEnabled(){
+    const key = autoOptionKey(AUTO_F_PREFIX);
+    return Boolean(key && localStorage.getItem(key) === 'true');
+  }
+  function autoPanelVisible(){
+    const key = autoOptionKey(AUTO_PANEL_PREFIX);
     return Boolean(key && localStorage.getItem(key) === 'true');
   }
   function setAutoXEnabled(value){
@@ -43,6 +59,63 @@
     autoXLastTarget = '';
     return true;
   }
+  function setAutoFEnabled(value){
+    const key = autoOptionKey(AUTO_F_PREFIX);
+    if (!key) return false;
+    localStorage.setItem(key, String(Boolean(value)));
+    autoFLastPress = 0;
+    return true;
+  }
+  function setAutoPanelVisible(value){
+    const key = autoOptionKey(AUTO_PANEL_PREFIX);
+    if (!key) return false;
+    localStorage.setItem(key, String(Boolean(value)));
+    syncAutoPanel();
+    return true;
+  }
+  function battleActive(){
+    const battle = window.Engine?.battle;
+    // Nie uruchamiaj F na podstawie samego istnienia obiektu battle.
+    return battle?.show === true || battle?.show === 1 || battle?.show === 'true';
+  }
+  function autoFTick(){
+    if (!autoFEnabled() || !battleActive()) return;
+    const active = document.activeElement;
+    if (active?.matches?.('input,textarea,select,[contenteditable="true"]') || active?.closest?.('[contenteditable="true"]')) return;
+    const now = Date.now();
+    if (now - autoFLastPress < AUTO_F_COOLDOWN) return;
+    autoFLastPress = now;
+    // Emulacja klawisza F - gra musi obslugiwac syntetyczne zdarzenia.
+    for (const type of ['keydown','keyup']) {
+      document.dispatchEvent(new KeyboardEvent(type, {key:'f',code:'KeyF',keyCode:70,which:70,bubbles:true,cancelable:true}));
+    }
+  }
+  setInterval(autoFTick, AUTO_F_INTERVAL);
+  let autoPanel = null;
+  function syncAutoPanel(){
+    const visible = autoPanelVisible();
+    if (!visible) { if(autoPanel) autoPanel.style.display='none'; return; }
+    if (!autoPanel || !autoPanel.isConnected) {
+      autoPanel = document.createElement('div');
+      autoPanel.id = 'fr-auto-xf-panel';
+      autoPanel.innerHTML = '<div class="fr-auto-xf-head">⚔ AUTO X / F <span>2 pola</span></div><label><input type="checkbox" data-fr-auto="x"> AUTO X</label><label><input type="checkbox" data-fr-auto="f"> AUTO F <small>(tylko walka)</small></label>';
+      document.body.appendChild(autoPanel);
+      autoPanel.addEventListener('change', ev => {
+        const option = ev.target?.dataset?.frAuto;
+        if (option === 'x') setAutoXEnabled(ev.target.checked);
+        if (option === 'f') setAutoFEnabled(ev.target.checked);
+        syncAutoPanel();
+      });
+    }
+    autoPanel.style.display = 'block';
+    const x = autoPanel.querySelector('[data-fr-auto="x"]');
+    const f = autoPanel.querySelector('[data-fr-auto="f"]');
+    if(x) x.checked = autoXEnabled();
+    if(f) f.checked = autoFEnabled();
+  }
+  setInterval(syncAutoPanel, 1200);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',syncAutoPanel,{once:true});
+  else syncAutoPanel();
   function autoXRelationState(){
     try {
       const raw = JSON.parse(localStorage.getItem('ll:social-relations:state') || 'null');
@@ -112,6 +185,10 @@
     }
   }
   setInterval(autoXTick, AUTO_X_INTERVAL);
+
+  const autoPanelCss = document.createElement('style');
+  autoPanelCss.textContent = `#fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:9999;min-width:155px;background:#24201b;border:1px solid #b38a4b;border-radius:6px;box-shadow:0 3px 12px #000a;color:#e8d7b2;font:12px Arial,sans-serif;padding:8px}#fr-auto-xf-panel .fr-auto-xf-head{font-weight:bold;color:#f2ce80;border-bottom:1px solid #6b5133;padding-bottom:6px;margin-bottom:6px}#fr-auto-xf-panel .fr-auto-xf-head span{float:right;color:#a99e8a;font-size:10px}#fr-auto-xf-panel label{display:flex;align-items:center;gap:7px;padding:5px 0;cursor:pointer}#fr-auto-xf-panel small{font-size:10px;color:#a99e8a}`;
+  (document.head || document.documentElement).appendChild(autoPanelCss);
 
   // Podpisy kamieni: niezalezne od widocznosci KCS, domyslnie wylaczone.
   const TELEPORT_SHORT_LABELS = Object.freeze({
@@ -401,7 +478,7 @@
         ${moduleRow('th','TitanHelper (TH)','Widoczność okna; działanie skryptu pozostaje aktywne')}
         ${moduleRow('as','Auto Skill (AS)','Widoczność okna; automat pozostaje aktywny')}
         <div class="fr-mgr-row"><div><div class="fr-mgr-title" style="display:flex;align-items:center;gap:7px">Szybki KCS <button type="button" class="fr-mgr-reset" data-fr-action="kcs-settings" title="Pełne ustawienia KCS: Discord Lootloga, timery, hotkey, AUTO, kamienie" aria-label="Ustawienia Szybkiego KCS" ${installed.kcs?'':'disabled'} style="margin-left:0;padding:3px 5px;line-height:1">${gearSVG}</button></div><div class="fr-mgr-muted">Hotkey, AUTO i blokada pod zębatką</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="kcs" ${localStorage.getItem('fr_manager_kcs_visible')!=='false'?'checked':''} ${installed.kcs?'':'disabled'}></div>
-        <div class="fr-mgr-row"><div><div class="fr-mgr-title">AUTO X • 2 pola</div><div class="fr-mgr-muted">Atakuj pojedynczego wroga w zasiegu • pomijaj sojusznikow</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="auto-x" ${autoXEnabled()?'checked':''} ${autoXCharacterKey()?'':'disabled'}></div>
+        <div class="fr-mgr-row"><div><div class="fr-mgr-title">Panel AUTO X / F</div><div class="fr-mgr-muted">Pokaz / ukryj male okno z osobnymi przelacznikami X i F</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="auto-panel" ${autoPanelVisible()?'checked':''} ${autoXCharacterKey()?'':'disabled'}></div>
         <div class="fr-mgr-row"><div><div class="fr-mgr-title">Podpisy kamieni</div><div class="fr-mgr-muted">Skróty E2 w plecaku • bez podpisów miast</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="stone-labels" ${settings.stoneLabelsEnabled?'checked':''}></div>
         <div class="fr-mgr-row"><div><div class="fr-mgr-title">Ulepszarka</div><div class="fr-mgr-muted">${upgradeEnabled()?'Moduł uruchomiony':'Moduł wyłączony • bez automatu i nasłuchów'}</div></div><input class="fr-mgr-toggle" type="checkbox" data-fr-module="upgrade-enabled" ${upgradeEnabled()?'checked':''}></div>
         ${upgradeEnabled()?`<div class="fr-mgr-row"><div class="fr-mgr-title">Panel Ulepszarki</div><button type="button" class="fr-mgr-reset" data-fr-action="upgrade-toggle">${settings.upgradeOpen===false?'Rozwiń':'Zwiń'}</button></div><div id="fr-upgrade-slot" class="fr-upgrade-slot"></div>`:''}
@@ -597,7 +674,7 @@
       body.dataset.frManagerBound='1';
       body.addEventListener('change',ev=>{
         const module=ev.target?.dataset?.frModule;
-        if(module==='auto-x'){setAutoXEnabled(ev.target.checked);draw();return;}
+        if(module==='auto-panel'){setAutoPanelVisible(ev.target.checked);draw();return;}
         if(module==='stone-labels'){settings.stoneLabelsEnabled=Boolean(ev.target.checked);save();syncStoneLabels();return;}
         if(module==='upgrade-enabled'){setUpgradeEnabled(ev.target.checked);return;}
         if(module==='kcs'){
