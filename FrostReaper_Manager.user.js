@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.5.4
+// @version      0.5.5
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -306,7 +306,7 @@
 
   const autoPanelCss = document.createElement('style');
   autoPanelCss.textContent = `
-    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:0;width:85px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:4px;box-shadow:0 2px 5px #0009;color:#e8d7b2;font:700 8px/10px Arial,sans-serif;padding:2px 4px;touch-action:none;user-select:none;cursor:grab}
+    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:10;width:85px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:4px;box-shadow:0 2px 5px #0009;color:#e8d7b2;font:700 8px/10px Arial,sans-serif;padding:2px 4px;touch-action:none;user-select:none;cursor:grab}
     #fr-auto-xf-panel:active{cursor:grabbing}
     #fr-auto-xf-panel .fr-auto-levels{display:flex;align-items:center;gap:2px;margin-top:2px;border-top:1px solid #80623c;padding-top:2px}
     #fr-auto-xf-panel .fr-auto-levels input{width:31px;min-width:0;height:15px;padding:0 1px;background:#191b20;color:#efcf84;border:1px solid #9b7c48;border-radius:2px;font:700 9px Arial;text-align:center;box-sizing:border-box;appearance:textfield;-moz-appearance:textfield}
