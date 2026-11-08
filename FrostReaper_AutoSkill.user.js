@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.6.2
+// @version      2.6.3
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -81,8 +81,8 @@
     const UI_KEY = "autoskill_pvp_ui";
     const SOCIAL_KEY = "ll:social-relations:state";
 
-    const DETECTION_RADIUS = 4; // jeden przeciwnik na mapie
-    const CROWDED_DETECTION_RADIUS = 2; // wielu przeciwnikow na mapie
+    const DETECTION_RADIUS = 4; // wielu przeciwnikow na mapie; jeden: cala mapa
+    const CROWDED_DETECTION_RADIUS = 4; // wielu przeciwnikow na mapie
     const DETECTION_INTERVAL = 100;
     const PARTY_CHECK_INTERVAL = 500;
 
@@ -1040,7 +1040,7 @@
     // ZMIANA ZESTAWU PvP — CENTRALNE ZABEZPIECZENIA
     // =====================================================
 
-    function changeBuild(id, playerData) {
+    function changeBuild(id, playerData, confirmedBattle = false) {
         id = Number(id);
 
         try {
@@ -1060,7 +1060,7 @@
                 return false;
             }
 
-            if (!canAutoSwitchForPvP()) {
+            if (!confirmedBattle && !canAutoSwitchForPvP()) {
                 setStatus(
                     "Zmiana zablokowana — brak aktywnego PvP."
                 );
@@ -1116,7 +1116,7 @@
     // WYKRYWANIE PRZECIWNIKA
     // =====================================================
 
-    function opponentDetected(professionValue, nick, playerData) {
+    function opponentDetected(professionValue, nick, playerData, confirmedBattle = false) {
         if (!config.enabled) return;
 
         // Jeśli jesteśmy w grupie, nie dobieramy buildu przeciwnika.
@@ -1126,7 +1126,7 @@
             return;
         }
 
-        if (!canAutoSwitchForPvP()) return;
+        if (!confirmedBattle && !canAutoSwitchForPvP()) return;
 
         if (playerData && isFriendlyPlayer(playerData)) {
             setStatus(
@@ -1169,7 +1169,7 @@
             mapType: getPvPMapType()
         });
 
-        changeBuild(set, playerData);
+        changeBuild(set, playerData, confirmedBattle);
     }
 
     // =====================================================
@@ -1241,11 +1241,10 @@
             // Nie przełączaj umiejętności od samego widoku wroga na drugim końcu mapy.
             // Po E2/PvP często zostają widoczne postacie, które nie są celem walki.
             const mapEnemies = onMap.filter(p => !isFriendlyPlayer(p.playerData));
-            // Jeden przeciwnik na CALEJ mapie: wykrywanie z 4 pol.
-            // Wielu przeciwnikow: reaguj dopiero na najblizszego w 2 polach.
-            // Nie blokuj zmiany tylko dlatego, ze inni stoja dalej.
+            // Jeden przeciwnik na calej mapie: zmien od razu, bez limitu dystansu.
+            // Wielu przeciwnikow: wybierz najblizszego w promieniu 4 pol.
             const soloEnemy = mapEnemies.length === 1;
-            const radius = soloEnemy ? DETECTION_RADIUS : CROWDED_DETECTION_RADIUS;
+            const radius = soloEnemy ? Infinity : CROWDED_DETECTION_RADIUS;
             const candidates = mapEnemies.filter(p => p.distance <= radius);
             if (!candidates.length) {
                 lastNearbyPlayer = null;
@@ -1266,9 +1265,9 @@
                 pvpTargetKey = targetKey;
                 pvpTargetStableSince = Date.now();
                 lastNearbyPlayer = null;
-                return;
+                if (!soloEnemy) return;
             }
-            if (Date.now() - pvpTargetStableSince < (soloEnemy ? 100 : PVP_TARGET_STABILITY_MS)) return;
+            if (!soloEnemy && Date.now() - pvpTargetStableSince < PVP_TARGET_STABILITY_MS) return;
             pvpLastSeenAt = Date.now();
 
             // Ponów, jeśli gra nie zastosowała poprzedniego zestawu.
@@ -1428,10 +1427,7 @@
                     applyGroupBuild();
                 } else if (
                     config.enabled &&
-                    canAutoSwitchForPvP() &&
                     r &&
-                    String(r.init) === "1" &&
-                    !this.show &&
                     r.w &&
                     r.myteam != null
                 ) {
@@ -1450,7 +1446,9 @@
                             const other =
                                 window.Engine?.others?.getById?.(id);
 
-                            if (other && other.isPlayer === false) return false;
+                            // Wymagaj potwierdzenia, ze przeciwnik jest graczem.
+                            // Bez tego E2/mob moglby wymusic build PvP.
+                            if (!other || other.isPlayer !== true) return false;
 
                             return true;
                         });
@@ -1487,7 +1485,8 @@
                         opponentDetected(
                             enemy.prof,
                             nick,
-                            playerData
+                            playerData,
+                            true
                         );
                     } else if (enemies.length > 1) {
                         battleTargetLockUntil = Date.now() + BATTLE_TARGET_LOCK_MS;
@@ -1543,7 +1542,7 @@
 
     save();
 
-    console.log("[AutoSkill PvP] Wersja 2.5.9 FROST REAPER załadowana.");
+    console.log("[AutoSkill PvP] Wersja 2.6.3 FROST REAPER załadowana.");
     console.log("[AutoSkill PvP] Nazwy zestawów:", getBuildNames());
     console.log("[AutoSkill PvP] Stan grupy:", getPartyInfo());
     console.log("[AutoSkill PvP] Build grupowy:", config.groupBuild);
