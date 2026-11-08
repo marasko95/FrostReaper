@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         Frost Reaper - Szybki KCS
 // @namespace    frost-reaper
-// @version      0.3.9
+// @version      0.4.0
 // @description  Slot z kamykiem na następną E2 przez publiczne API Lootloga, zatrzymywany po legendzie (SI+NI)
 // @match        https://*.margonem.pl/*
+// @exclude      https://www.margonem.pl/*
+// @exclude      https://forum.margonem.pl/*
 // @grant        none
 // @run-at       document-idle
 // @noframes
@@ -22,7 +24,12 @@
         return;
     }
 
-    const ADDON_VERSION = 'FR-KCS-0.3.9';
+    // KCS działa wyłącznie na serwerach gry, nigdy na stronie głównej/portalu.
+    // @exclude zabezpiecza Tampermonkey; ten warunek chroni także inne sposoby uruchomienia skryptu.
+    const host = String(window.location.hostname || '').toLowerCase();
+    if (!host.endsWith('.margonem.pl') || ['www.margonem.pl', 'forum.margonem.pl'].includes(host)) return;
+
+    const ADDON_VERSION = 'FR-KCS-0.4.0';
     const RUNTIME_KEY = '__frostReaperTepeKamykiRuntime';
     const RUNTIME_ATTR = 'data-frostReaper-tepekamyki-runtime';
 
