@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.6.1
+// @version      2.6.2
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -81,7 +81,8 @@
     const UI_KEY = "autoskill_pvp_ui";
     const SOCIAL_KEY = "ll:social-relations:state";
 
-    const DETECTION_RADIUS = 4;
+    const DETECTION_RADIUS = 4; // jeden przeciwnik na mapie
+    const CROWDED_DETECTION_RADIUS = 2; // wielu przeciwnikow na mapie
     const DETECTION_INTERVAL = 100;
     const PARTY_CHECK_INTERVAL = 500;
 
@@ -1240,22 +1241,25 @@
             // Nie przełączaj umiejętności od samego widoku wroga na drugim końcu mapy.
             // Po E2/PvP często zostają widoczne postacie, które nie są celem walki.
             const mapEnemies = onMap.filter(p => !isFriendlyPlayer(p.playerData));
-            const candidates = mapEnemies.filter(p => p.distance <= DETECTION_RADIUS);
-            const soloEnemy = candidates.length === 1;
+            // Jeden przeciwnik na CALEJ mapie: wykrywanie z 4 pol.
+            // Wielu przeciwnikow: reaguj dopiero na najblizszego w 2 polach.
+            // Nie blokuj zmiany tylko dlatego, ze inni stoja dalej.
+            const soloEnemy = mapEnemies.length === 1;
+            const radius = soloEnemy ? DETECTION_RADIUS : CROWDED_DETECTION_RADIUS;
+            const candidates = mapEnemies.filter(p => p.distance <= radius);
             if (!candidates.length) {
                 lastNearbyPlayer = null;
                 pvpTargetKey = null;
                 return;
             }
-            // Nie zgaduj profesji: gdy kilku wrogów jest w zasięgu,
-            // nie wiadomo, który z nich rozpocznie walkę.
-            if (candidates.length !== 1) {
+            const target = candidates[0];
+            // Przy rownej odleglosci nie wybieraj losowo celu/profesji.
+            if (candidates.length > 1 && candidates[1].distance === target.distance) {
                 lastNearbyPlayer = null;
                 pvpTargetKey = null;
-                setStatus('Kilku przeciwników w pobliżu — czekam na pewny cel.');
+                setStatus('Kilku przeciwnikow rownie blisko — czekam na pewny cel.');
                 return;
             }
-            const target = candidates[0];
             const targetKey = target.id + ":" + target.profession;
 
             if (targetKey !== pvpTargetKey) {
@@ -1264,7 +1268,7 @@
                 lastNearbyPlayer = null;
                 return;
             }
-            if (Date.now() - pvpTargetStableSince < PVP_TARGET_STABILITY_MS) return;
+            if (Date.now() - pvpTargetStableSince < (soloEnemy ? 100 : PVP_TARGET_STABILITY_MS)) return;
             pvpLastSeenAt = Date.now();
 
             // Ponów, jeśli gra nie zastosowała poprzedniego zestawu.
