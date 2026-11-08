@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Auto Skill PvP
 // @namespace    https://autoskill-pvp.local/
-// @version      2.6.3
+// @version      2.6.4
 // @description  AutoSkill PvP — Frost Reaper Gothic Edition + Group Build
 // @match        https://*.margonem.pl/*
 // @match        https://*.margonem.com/*
@@ -925,44 +925,12 @@
     let pendingRestoreBuild = null;
     let lastBuildRequest = {id:null,at:0};
     const BUILD_RETRY_MS = 850;
-    // Zestaw sprzed automatycznej zmiany PvP; zapamiętywany tylko raz.
-    let prePvpBuild = null;
-    let pvpBuildActive = false;
-    let pvpLastSeenAt = 0;
+    // PvP nigdy nie przywraca zestawu. Powrot jest dozwolony tylko po rozpadzie grupy.
     let pvpTargetKey = null;
     let pvpTargetStableSince = 0;
     let battleTargetLockUntil = 0;
     const BATTLE_TARGET_LOCK_MS = 2500;
     const PVP_TARGET_STABILITY_MS = 350;
-    const PVP_RESTORE_DELAY_MS = 1400;
-
-    function restorePvpBuild() {
-        if (!pvpBuildActive || prePvpBuild == null) return;
-        if (window.Engine?.battle?.show || getPartyInfo().inParty) return;
-        if (Date.now() - pvpLastSeenAt < PVP_RESTORE_DELAY_MS) return;
-        if (!config.enabled) return;
-        const target = prePvpBuild;
-        if (Number(config.groupBuild) === target && target > 0) {
-            // Nie odtwarzaj zarezerwowanego zestawu grupowego poza grupą.
-            pvpBuildActive = false;
-            prePvpBuild = null;
-            return;
-        }
-        if (currentBuildId() === target) {
-            pvpBuildActive = false;
-            prePvpBuild = null;
-            setStatus('Przywrócono zestaw: ' + getBuildLabel(target));
-            return;
-        }
-        if (setBuildDirect(target, 'restore-after-pvp')) {
-            // Zostaw stan do chwili potwierdzenia przez silnik gry.
-            setStatus('Przywracanie zestawu: ' + getBuildLabel(target));
-        }
-    }
-
-    // Potwierdzaj zmianę również bez kolejnego ataku.
-    setInterval(restorePvpBuild, 300);
-
 
     function currentBuildId(){
         try {return Number(window.Engine?.buildsManager?.getBuildsCommons?.()?.getCurrentId?.()) || null;}
@@ -982,6 +950,7 @@
                     setStatus('Grupa opuszczona — przywracanie poprzedniego zestawu...');
                 }
                 if (pendingRestoreBuild != null) {
+                    if (window.Engine?.battle?.show) return false;
                     const restoreId = pendingRestoreBuild;
                     if (Number(config.groupBuild) === restoreId && restoreId > 0) {
                         pendingRestoreBuild = null;
@@ -994,15 +963,16 @@
                         return true;
                     }
                     if (!config.enabled) return false;
-                    if (setBuildDirect(restoreId,'restore-after-party')) return true;
+                    if (setBuildDirect(restoreId,'restore-after-party')) {
+                        setStatus('Przywracanie zestawu sprzed grupy: ' + getBuildLabel(restoreId));
+                        return true;
+                    }
                 }
                 return false;
             }
             if (!wasInParty) {
                 // Zapis tylko przy pierwszym wejściu, nigdy podczas kolejnych odświeżeń.
-                prePartyBuild = prePvpBuild ?? currentBuildId();
-                prePvpBuild = null;
-                pvpBuildActive = false;
+                prePartyBuild = currentBuildId();
                 pendingRestoreBuild = null;
                 wasInParty = true;
                 lastNearbyPlayer = null;
@@ -1088,19 +1058,9 @@
                 return false;
             }
 
-            const before = currentBuildId();
-            if (!pvpBuildActive && before != null && before !== id) {
-                prePvpBuild = before;
-                pvpBuildActive = true;
-            }
-            pvpLastSeenAt = Date.now();
             const success = setBuildDirect(id, "pvp");
-
             if (success) {
                 setStatus("Zmiana zestawu: " + getBuildLabel(id) + ".");
-            } else if (before != null && before !== id && prePvpBuild === before) {
-                prePvpBuild = null;
-                pvpBuildActive = false;
             }
 
             return success;
@@ -1197,7 +1157,6 @@
 
             if (!Engine?.hero?.d) return;
             if (Engine.battle?.show || Date.now() < battleTargetLockUntil) {
-                if (pvpBuildActive) pvpLastSeenAt = Date.now();
                 return;
             }
 
@@ -1268,7 +1227,6 @@
                 if (!soloEnemy) return;
             }
             if (!soloEnemy && Date.now() - pvpTargetStableSince < PVP_TARGET_STABILITY_MS) return;
-            pvpLastSeenAt = Date.now();
 
             // Ponów, jeśli gra nie zastosowała poprzedniego zestawu.
             const desiredBuild = Number(config.mappings[target.profession] || 1);
