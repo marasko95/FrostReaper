@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.5.3
+// @version      0.5.4
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -22,6 +22,7 @@
   const AUTO_X_PREFIX = 'fr_manager_auto_x_v1_'; // zachowaj stan X z v0.4.5
   const AUTO_F_PREFIX = 'fr_manager_auto_f_v1_';
   const AUTO_PANEL_PREFIX = 'fr_manager_auto_panel_visible_v1_';
+  const AUTO_LEVEL_PREFIX = 'fr_manager_auto_x_level_range_v1_';
   const AUTO_X_INTERVAL = 100;
   const AUTO_X_COOLDOWN = 900;
   const AUTO_F_INTERVAL = 180;
@@ -50,6 +51,26 @@
   function autoPanelVisible(){
     const key = autoOptionKey(AUTO_PANEL_PREFIX);
     return Boolean(key && localStorage.getItem(key) === 'true');
+  }
+  function autoLevelRange(){
+    const key = autoOptionKey(AUTO_LEVEL_PREFIX);
+    let data = null;
+    try { data = key ? JSON.parse(localStorage.getItem(key) || 'null') : null; } catch (_) {}
+    const min = Number(data?.min), max = Number(data?.max);
+    return {min: Number.isInteger(min) && min >= 1 ? min : 1,
+            max: Number.isInteger(max) && max >= 1 ? max : 500};
+  }
+  function saveAutoLevelRange(){
+    const key = autoOptionKey(AUTO_LEVEL_PREFIX);
+    if (!key || !autoPanel) return;
+    const minInput = autoPanel.querySelector('[data-fr-level="min"]');
+    const maxInput = autoPanel.querySelector('[data-fr-level="max"]');
+    if (!minInput || !maxInput) return;
+    const min = Math.max(1, Math.min(500, Math.trunc(Number(minInput.value) || 1)));
+    const max = Math.max(min, Math.min(500, Math.trunc(Number(maxInput.value) || 500)));
+    localStorage.setItem(key, JSON.stringify({min,max}));
+    minInput.value = String(min);
+    maxInput.value = String(max);
   }
   function setAutoXEnabled(value){
     const key = autoXCharacterKey();
@@ -184,10 +205,11 @@
     if (!autoPanel || !autoPanel.isConnected) {
       autoPanel = document.createElement('div');
       autoPanel.id = 'fr-auto-xf-panel';
-      autoPanel.innerHTML = '<label><span>AUTO X</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="x"></label><label><span>AUTO F</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="f"></label>';
+      autoPanel.innerHTML = '<label><span>AUTO X</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="x"></label><label><span>AUTO F</span><input class="fr-auto-xf-toggle" type="checkbox" data-fr-auto="f"></label><div class="fr-auto-levels" title="Zakres poziomow celow AUTO X"><input type="number" min="1" max="500" data-fr-level="min" aria-label="Poziom od"><span>–</span><input type="number" min="1" max="500" data-fr-level="max" aria-label="Poziom do"></div>';
       document.body.appendChild(autoPanel);
       enableAutoPanelDrag(autoPanel);
       autoPanel.addEventListener('change', ev => {
+        if (ev.target?.dataset?.frLevel) { saveAutoLevelRange(); return; }
         const option = ev.target?.dataset?.frAuto;
         if (option === 'x') setAutoXEnabled(ev.target.checked);
         if (option === 'f') setAutoFEnabled(ev.target.checked);
@@ -200,6 +222,11 @@
     const f = autoPanel.querySelector('[data-fr-auto="f"]');
     if(x) x.checked = autoXEnabled();
     if(f) f.checked = autoFEnabled();
+    const level = autoLevelRange();
+    const minInput = autoPanel.querySelector('[data-fr-level="min"]');
+    const maxInput = autoPanel.querySelector('[data-fr-level="max"]');
+    if(minInput && document.activeElement !== minInput) minInput.value = String(level.min);
+    if(maxInput && document.activeElement !== maxInput) maxInput.value = String(level.max);
   }
   setInterval(syncAutoPanel, 600);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',syncAutoPanel,{once:true});
@@ -261,6 +288,9 @@
       });
       if (nearby.length !== 1) return; // native X moze wybrac inny cel
       const target = nearby[0];
+      const targetLevel = Number(target.d?.lvl ?? target.d?.level);
+      const levelRange = autoLevelRange();
+      if (!Number.isFinite(targetLevel) || targetLevel < levelRange.min || targetLevel > levelRange.max) return;
       if (autoXIsProtected(target, hero, autoXRelationState())) return;
       const targetId = String(target.d.id);
       const now = Date.now();
@@ -276,8 +306,12 @@
 
   const autoPanelCss = document.createElement('style');
   autoPanelCss.textContent = `
-    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:100;width:85px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:4px;box-shadow:0 2px 5px #0009;color:#e8d7b2;font:700 8px/10px Arial,sans-serif;padding:2px 4px;touch-action:none;user-select:none;cursor:grab}
+    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:0;width:85px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:4px;box-shadow:0 2px 5px #0009;color:#e8d7b2;font:700 8px/10px Arial,sans-serif;padding:2px 4px;touch-action:none;user-select:none;cursor:grab}
     #fr-auto-xf-panel:active{cursor:grabbing}
+    #fr-auto-xf-panel .fr-auto-levels{display:flex;align-items:center;gap:2px;margin-top:2px;border-top:1px solid #80623c;padding-top:2px}
+    #fr-auto-xf-panel .fr-auto-levels input{width:31px;min-width:0;height:15px;padding:0 1px;background:#191b20;color:#efcf84;border:1px solid #9b7c48;border-radius:2px;font:700 9px Arial;text-align:center;box-sizing:border-box;appearance:textfield;-moz-appearance:textfield}
+    #fr-auto-xf-panel .fr-auto-levels input::-webkit-inner-spin-button,#fr-auto-xf-panel .fr-auto-levels input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+    #fr-auto-xf-panel .fr-auto-levels span{flex:1;text-align:center}
     #fr-auto-xf-panel label{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:1px 0;min-height:11px;cursor:default;white-space:nowrap}
     #fr-auto-xf-panel .fr-auto-xf-toggle{appearance:none;-webkit-appearance:none;width:21px;height:11px;flex:none;margin:0;border-radius:8px;background:#44392b;border:1px solid #9b7c48;cursor:pointer;position:relative;box-sizing:border-box}
     #fr-auto-xf-panel .fr-auto-xf-toggle:before{content:'';position:absolute;top:1px;left:1px;width:7px;height:7px;border-radius:50%;background:#b3a28a;transition:left .15s}
