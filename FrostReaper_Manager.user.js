@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.5.6
+// @version      0.5.7
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -120,7 +120,7 @@
   }
   setInterval(autoFTick, AUTO_F_INTERVAL);
   let autoPanel = null;
-  const AUTO_PANEL_POSITION_KEY = 'fr_manager_auto_xf_position_v2';
+  const AUTO_PANEL_POSITION_KEY = 'fr_manager_auto_xf_position_v3';
   function enableAutoPanelDrag(panel){
     if(panel.dataset.frDragReady) return;
     panel.dataset.frDragReady='1';
@@ -192,8 +192,8 @@
     const r = anchor.getBoundingClientRect();
     const width = autoPanel.offsetWidth || 68;
     const height = autoPanel.offsetHeight || 28;
-    // Cel: waski pasek przy ikonach toreb, a nie na kamieniach.
-    const left = Math.max(0, Math.min(Math.round(r.left - 18), innerWidth - width));
+    // Panel przesuniety w prawo, do krawedzi ekwipunku; zapis recznego polozenia ma pierwszenstwo.
+    const left = Math.max(0, Math.min(Math.round(r.left + 4), innerWidth - width));
     const top = Math.max(0, Math.min(Math.round(r.top - height - 9), innerHeight - height));
     autoPanel.style.setProperty('left', left + 'px');
     autoPanel.style.setProperty('top', top + 'px');
