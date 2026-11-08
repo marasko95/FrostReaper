@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Frost Reaper - Menedzer dodatkow
 // @namespace    frost-reaper
-// @version      0.5.5
+// @version      0.5.6
 // @updateURL    https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/marasko95/FrostReaper/main/FrostReaper_Manager.user.js
 // @description  Frost Reaper Manager z wbudowana Ulepszarka (jeden skrypt).
@@ -120,7 +120,7 @@
   }
   setInterval(autoFTick, AUTO_F_INTERVAL);
   let autoPanel = null;
-  const AUTO_PANEL_POSITION_KEY = 'fr_manager_auto_xf_position_v1';
+  const AUTO_PANEL_POSITION_KEY = 'fr_manager_auto_xf_position_v2';
   function enableAutoPanelDrag(panel){
     if(panel.dataset.frDragReady) return;
     panel.dataset.frDragReady='1';
@@ -162,6 +162,7 @@
   // Pozycja na wysokosci toreb, w waskim pasie miedzy statystykami a kamieniami.
   function positionAutoPanelAboveInventory(){
     if (!autoPanel || !autoPanel.isConnected || autoPanel.style.display === 'none') return;
+    try { if (localStorage.getItem(AUTO_PANEL_POSITION_KEY)) return; } catch (_) {}
     const selectors = [
       '.inventory-grid',
       '[data-window-name="inventory"] .inventory-grid',
@@ -189,11 +190,11 @@
     }
     if (!anchor) return;
     const r = anchor.getBoundingClientRect();
-    const width = autoPanel.offsetWidth || 85;
+    const width = autoPanel.offsetWidth || 68;
     const height = autoPanel.offsetHeight || 28;
     // Cel: waski pasek przy ikonach toreb, a nie na kamieniach.
-    const left = Math.max(0, Math.min(Math.round(r.left + 1), innerWidth - width));
-    const top = Math.max(0, Math.min(Math.round(r.top - height - 16), innerHeight - height));
+    const left = Math.max(0, Math.min(Math.round(r.left - 18), innerWidth - width));
+    const top = Math.max(0, Math.min(Math.round(r.top - height - 9), innerHeight - height));
     autoPanel.style.setProperty('left', left + 'px');
     autoPanel.style.setProperty('top', top + 'px');
     autoPanel.style.setProperty('right', 'auto');
@@ -306,17 +307,17 @@
 
   const autoPanelCss = document.createElement('style');
   autoPanelCss.textContent = `
-    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:10;width:85px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:4px;box-shadow:0 2px 5px #0009;color:#e8d7b2;font:700 8px/10px Arial,sans-serif;padding:2px 4px;touch-action:none;user-select:none;cursor:grab}
+    #fr-auto-xf-panel{position:fixed;right:15px;top:140px;z-index:10;width:68px;box-sizing:border-box;background:linear-gradient(150deg,#30291f,#191b20);border:1px solid #b38a4b;border-radius:4px;box-shadow:0 2px 5px #0009;color:#e8d7b2;font:700 7px/9px Arial,sans-serif;padding:1px 3px;touch-action:none;user-select:none;cursor:grab}
     #fr-auto-xf-panel:active{cursor:grabbing}
-    #fr-auto-xf-panel .fr-auto-levels{display:flex;align-items:center;gap:2px;margin-top:2px;border-top:1px solid #80623c;padding-top:2px}
-    #fr-auto-xf-panel .fr-auto-levels input{width:31px;min-width:0;height:15px;padding:0 1px;background:#191b20;color:#efcf84;border:1px solid #9b7c48;border-radius:2px;font:700 9px Arial;text-align:center;box-sizing:border-box;appearance:textfield;-moz-appearance:textfield}
+    #fr-auto-xf-panel .fr-auto-levels{display:flex;align-items:center;gap:1px;margin-top:1px;border-top:1px solid #80623c;padding-top:1px}
+    #fr-auto-xf-panel .fr-auto-levels input{width:24px;min-width:0;height:12px;padding:0;background:#191b20;color:#efcf84;border:1px solid #9b7c48;border-radius:2px;font:700 8px Arial;text-align:center;box-sizing:border-box;appearance:textfield;-moz-appearance:textfield}
     #fr-auto-xf-panel .fr-auto-levels input::-webkit-inner-spin-button,#fr-auto-xf-panel .fr-auto-levels input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
     #fr-auto-xf-panel .fr-auto-levels span{flex:1;text-align:center}
-    #fr-auto-xf-panel label{display:flex;align-items:center;justify-content:space-between;gap:2px;padding:1px 0;min-height:11px;cursor:default;white-space:nowrap}
-    #fr-auto-xf-panel .fr-auto-xf-toggle{appearance:none;-webkit-appearance:none;width:21px;height:11px;flex:none;margin:0;border-radius:8px;background:#44392b;border:1px solid #9b7c48;cursor:pointer;position:relative;box-sizing:border-box}
-    #fr-auto-xf-panel .fr-auto-xf-toggle:before{content:'';position:absolute;top:1px;left:1px;width:7px;height:7px;border-radius:50%;background:#b3a28a;transition:left .15s}
+    #fr-auto-xf-panel label{display:flex;align-items:center;justify-content:space-between;gap:1px;padding:0;min-height:10px;cursor:default;white-space:nowrap}
+    #fr-auto-xf-panel .fr-auto-xf-toggle{appearance:none;-webkit-appearance:none;width:18px;height:10px;flex:none;margin:0;border-radius:8px;background:#44392b;border:1px solid #9b7c48;cursor:pointer;position:relative;box-sizing:border-box}
+    #fr-auto-xf-panel .fr-auto-xf-toggle:before{content:'';position:absolute;top:1px;left:1px;width:6px;height:6px;border-radius:50%;background:#b3a28a;transition:left .15s}
     #fr-auto-xf-panel .fr-auto-xf-toggle:checked{background:#66502c}
-    #fr-auto-xf-panel .fr-auto-xf-toggle:checked:before{left:11px;background:#efcf84}
+    #fr-auto-xf-panel .fr-auto-xf-toggle:checked:before{left:9px;background:#efcf84}
   `;
   (document.head || document.documentElement).appendChild(autoPanelCss);
 
